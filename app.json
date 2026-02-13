@@ -2,7 +2,7 @@
   "expo": {
     "name": "TabuApp",
     "slug": "TabuApp",
-    "version": "1.0.0",
+    "version": "1.0.1",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
@@ -19,10 +19,17 @@
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#ffffff"
       },
-      "package": "com.anonymous.TabuApp"
+      "package": "com.arcodiba.tabuapp",
+      "versionCode": 1
     },
     "web": {
       "favicon": "./assets/favicon.png"
-    }
+    },
+    "extra": {
+      "eas": {
+        "projectId": "2f69787d-de33-4273-8944-8ddccfceb25c"
+      }
+    },
+    "owner": "arcodiba"
   }
 }
