@@ -1,13 +1,12 @@
 import React from 'react';
-import { View, Text, TouchableOpacity, SafeAreaView, Switch, StatusBar } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+import { View, Text, TouchableOpacity, Switch, StatusBar } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context'; // App.js ile uyumlu olan
+import { Ionicons, MaterialIcons } from '@expo/vector-icons'; // MaterialIcons eklendi
 import useGameStore from '../store/useGameStore';
 
 export default function SettingsScreen({ navigation }) {
-    // Zustand store'dan ayarları ve güncelleme fonksiyonunu alıyoruz
     const { settings, setSettings } = useGameStore();
 
-    // Hata önleyici yardımcı fonksiyon: Gelen değerin boolean olduğundan emin olur
     const handleVibrationToggle = (value) => {
         setSettings({ vibration: Boolean(value) });
     };
@@ -33,16 +32,16 @@ export default function SettingsScreen({ navigation }) {
             <View className="p-6 space-y-10">
 
                 {/* Tur Süresi Seçimi */}
-                <View>
-                    <Text className="text-slate-400 font-bold mb-4 uppercase tracking-widest text-xs">
+                <View className="gap-4">
+                    <Text className="text-slate-400 font-bold mb-4 uppercase tracking-widest text-xs ml-2">
                         Tur Süresi (Saniye)
                     </Text>
-                    <View className="flex-row justify-between">
+                    <View className="flex-row justify-between space-x-2">
                         {[45, 60, 90].map((time) => (
                             <TouchableOpacity
                                 key={time}
                                 onPress={() => handleDurationChange(time)}
-                                className={`px-10 py-5 rounded-3xl ${settings.duration === time ? 'bg-indigo-600 shadow-lg' : 'bg-white border border-slate-200'}`}
+                                className={`flex-1 py-5 rounded-3xl items-center ${settings.duration === time ? 'bg-indigo-600 shadow-lg' : 'bg-white border border-slate-200'}`}
                             >
                                 <Text className={`font-black text-lg ${settings.duration === time ? 'text-white' : 'text-slate-600'}`}>
                                     {time}
@@ -53,16 +52,16 @@ export default function SettingsScreen({ navigation }) {
                 </View>
 
                 {/* Pas Hakkı Seçimi */}
-                <View>
-                    <Text className="text-slate-400 font-bold mb-4 uppercase tracking-widest text-xs">
+                <View className="gap-4">
+                    <Text className="text-slate-400 font-bold mb-4 uppercase tracking-widest text-xs ml-2">
                         Pas Hakkı
                     </Text>
-                    <View className="flex-row justify-between">
+                    <View className="flex-row justify-between space-x-2">
                         {[3, 5, 10].map((pass) => (
                             <TouchableOpacity
                                 key={pass}
                                 onPress={() => setSettings({ maxPass: Number(pass) })}
-                                className={`px-10 py-5 rounded-3xl ${settings.maxPass === pass ? 'bg-amber-500 shadow-lg' : 'bg-white border border-slate-200'}`}
+                                className={`flex-1 py-5 rounded-3xl items-center ${settings.maxPass === pass ? 'bg-amber-500 shadow-lg' : 'bg-white border border-slate-200'}`}
                             >
                                 <Text className={`font-black text-lg ${settings.maxPass === pass ? 'text-white' : 'text-slate-600'}`}>
                                     {pass}
@@ -72,16 +71,16 @@ export default function SettingsScreen({ navigation }) {
                     </View>
                 </View>
 
-                {/* Titreşim Kontrolü (Hatanın Kaynağı Burası Olabilir) */}
+                {/* Titreşim Kontrolü - HATA DÜZELTİLDİ */}
                 <View className="flex-row justify-between items-center bg-white p-6 rounded-[35px] border border-slate-100 shadow-sm">
                     <View className="flex-row items-center">
                         <View className="bg-indigo-100 p-3 rounded-2xl mr-4">
-                            <Ionicons name="vibrate" size={24} color="#4f46e5" />
+                            <MaterialIcons name="vibration" size={24} color="#4f46e5" />
                         </View>
-                        <Text className="text-slate-700 font-bold text-lg text-center">Titreşim Geri Bildirimi</Text>
+                        <Text className="text-slate-700 font-bold text-lg">Titreşim</Text>
                     </View>
                     <Switch
-                        value={Boolean(settings.vibration)} // Değeri zorla Boolean yapıyoruz
+                        value={Boolean(settings.vibration)}
                         onValueChange={handleVibrationToggle}
                         trackColor={{ false: "#cbd5e1", true: "#818cf8" }}
                         thumbColor={settings.vibration ? "#4f46e5" : "#f4f3f4"}
@@ -93,7 +92,7 @@ export default function SettingsScreen({ navigation }) {
             {/* Kaydet Butonu */}
             <View className="mt-auto p-6">
                 <TouchableOpacity
-                    className="bg-indigo-600 py-6 rounded-3xl shadow-xl active:bg-indigo-700"
+                    className="bg-indigo-600 py-6 rounded-3xl shadow-xl active:scale-95"
                     onPress={() => navigation.goBack()}
                 >
                     <Text className="text-white text-center font-black text-xl uppercase tracking-widest">
