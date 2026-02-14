@@ -13,20 +13,19 @@ const useGameStore = create((set, get) => ({
     // --- OYUN DURUMU (STATE) ---
     totalScores: { A: 0, B: 0 },
     currentTeam: 'A',    // Sıradaki takım
-    currentScore: 0,     // O anki aktif turun puanı
-    passCount: 0,        // Kullanılan pas sayısı
+    currentScore: 0,   // O anki aktif turun puanı
+    passCount: 0,      // O anki turda kullanılan pas
 
-    // --- KELİME VE HATA YÖNETİMİ ---
-    wordPool: [],      // Firebase'den gelen kelime havuzu
+    // --- KELİME YÖNETİMİ ---
+    wordPool: [],      // Firebase'den gelen 100 kelimelik havuz
     currentWord: null, // Ekranda görünen aktif kelime
-    isLoading: false,  // Yüklenme durumu
-    error: null,       // Hata mesajı (Network vb.)
+    isLoading: false,
 
     // --- AYAR VE SKOR FONKSİYONLARI ---
     setSettings: (newSettings) =>
         set((state) => ({ settings: { ...state.settings, ...newSettings } })),
 
-    // Tur bittiğinde çağrılır: Puanı takıma ekler ve sırayı değiştirir
+    // Tur bitince mevcut puanı ilgili takıma ekler
     finalizeTurn: () => {
         const { currentTeam, currentScore, totalScores } = get();
         set({
@@ -34,54 +33,44 @@ const useGameStore = create((set, get) => ({
                 ...totalScores,
                 [currentTeam]: totalScores[currentTeam] + currentScore
             },
-            currentScore: 0,
-            passCount: 0,
-            currentTeam: currentTeam === 'A' ? 'B' : 'A'
+            currentScore: 0, // Yeni tur için sıfırla
+            passCount: 0,    // Yeni tur için sıfırla
+            currentTeam: currentTeam === 'A' ? 'B' : 'A' // Takım değiştir
         });
     },
 
     // --- PERFORMANS VE OYUN MANTIĞI ---
 
-    // 1. Oyun Başında Kelimeleri Havuza Doldur (Hata Yönetimli)
+    // 1. Oyun Başında Kelimeleri Havuza Doldur (Hız için kritik)
     prepareGame: async () => {
-        set({ isLoading: true, error: null }); // Başlarken hatayı temizle
+        set({ isLoading: true });
         try {
-            // Firebase'den 100 kelimeyi tek seferde çekiyoruz (Hız sağlar)
+            // Firebase'den 100 kelimeyi tek seferde çekiyoruz (Takılmayı önler)
             const batch = await getWordBatch(100);
-
             if (batch && batch.length > 0) {
                 set({
                     wordPool: batch,
                     currentWord: batch[0],
-                    isLoading: false,
-                    error: null
-                });
-            } else {
-                set({
-                    error: "Kelimeler yüklenemedi. Veritabanı boş görünüyor.",
                     isLoading: false
                 });
             }
-        } catch (err) {
-            console.error("Oyun hazırlanırken hata:", err);
-            set({
-                error: "Bağlantı hatası! Lütfen internetinizi kontrol edin.",
-                isLoading: false
-            });
+        } catch (error) {
+            console.error("Oyun hazırlanırken hata:", error);
+            set({ isLoading: false });
         }
     },
 
-    // 2. Kelime Değiştirme (Hafızadan anlık çalışır)
+    // 2. Kelime Değiştirme (RAM üzerinden anlık çalışır)
     nextWord: () => {
         const { wordPool } = get();
         if (wordPool.length > 1) {
-            const newPool = wordPool.slice(1); // Kullanılan kelimeyi at
+            const newPool = wordPool.slice(1); // Kullanılan kelimeyi diziden at
             set({
                 wordPool: newPool,
                 currentWord: newPool[0]
             });
         } else {
-            // Havuz biterse yeni paket çek
+            // Havuz kritik seviyeye inerse (son kelime) yeni paket çek
             get().prepareGame();
         }
     },
@@ -89,7 +78,6 @@ const useGameStore = create((set, get) => ({
     // 3. Aksiyon Fonksiyonları (Doğru / Tabu / Pas)
     handleCorrect: () => {
         const { settings } = get();
-        // Doğru titreşimi
         if (settings.vibration) Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
 
         set((state) => ({ currentScore: state.currentScore + 1 }));
@@ -98,7 +86,6 @@ const useGameStore = create((set, get) => ({
 
     handleTaboo: () => {
         const { settings } = get();
-        // Tabu/Hata titreşimi
         if (settings.vibration) Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
 
         set((state) => ({ currentScore: state.currentScore - 1 }));
@@ -108,27 +95,23 @@ const useGameStore = create((set, get) => ({
     handlePass: () => {
         const { passCount, settings } = get();
         if (passCount < settings.maxPass) {
-            // Hafif vuruş titreşimi
             if (settings.vibration) Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
 
             set((state) => ({ passCount: state.passCount + 1 }));
             get().nextWord();
             return true;
         }
-        // Pas bittiyse uyarı titreşimi
+        // Pas hakkı bittiyse ufak bir uyarı titreşimi verilebilir
         if (settings.vibration) Haptics.selectionAsync();
         return false;
     },
 
-    // --- RESET ---
+    // --- SIFIRLAMA ---
     resetGame: () => set({
         totalScores: { A: 0, B: 0 },
         currentScore: 0,
         passCount: 0,
-        currentTeam: 'A',
-        error: null,
-        wordPool: [],
-        currentWord: null
+        currentTeam: 'A'
     }),
 }));
 

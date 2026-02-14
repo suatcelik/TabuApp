@@ -3,7 +3,16 @@ import { View, Text, TouchableOpacity, StatusBar, Image } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 
+import useGameStore from '../store/useGameStore';
+
 export default function HomeScreen({ navigation }) {
+    const { resetGame } = useGameStore();
+
+    const handleStart = () => {
+        resetGame();
+        navigation.navigate('Game');
+    };
+
     return (
         <SafeAreaView className="flex-1 bg-white" >
             <StatusBar barStyle="dark-content" />
@@ -28,7 +37,7 @@ export default function HomeScreen({ navigation }) {
                 {/* Oyuna Başla Butonu */}
                 <TouchableOpacity
                     className="bg-indigo-600 py-6 rounded-3xl shadow-2xl shadow-indigo-300 flex-row justify-center items-center active:scale-95"
-                    onPress={() => navigation.navigate('Game')}
+                    onPress={handleStart}
                 >
                     <Ionicons name="play" size={24} color="white" className="mr-2" />
                     <Text className="text-white text-2xl font-black uppercase italic tracking-widest ml-2">
