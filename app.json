@@ -32,7 +32,8 @@
     },
     "owner": "arcodiba",
     "plugins": [
-      "expo-audio"
+      "expo-font",
+      "expo-asset"
     ]
   }
 }
