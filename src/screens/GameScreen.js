@@ -1,4 +1,4 @@
-import React, { useEffect, useReducer, useState } from "react";
+import React, { useEffect, useReducer, useRef, useState } from "react";
 import {
     View,
     Text,
@@ -18,6 +18,44 @@ import { gameReducer, initialState } from "../reducers/gameReducer";
 import { saveScore } from "../services/leaderboardService";
 import { logRoundEnd } from "../services/analyticsService";
 import useGameStore from "../store/useGameStore";
+
+// ✅ Yeni cache anahtarları (TTL + version + migrate)
+const WORDS_CACHE_KEY = "WORDS_CACHE_V1";
+const LAST_FIRST_WORD_KEY = "LAST_FIRST_WORD_V1";
+const CACHE_VERSION = 1;
+const CACHE_TTL_MS = 24 * 60 * 60 * 1000; // 24 saat
+
+// ✅ Fisher–Yates shuffle (uniform)
+const shuffleWords = (words) => {
+    const arr = [...words];
+    for (let i = arr.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [arr[i], arr[j]] = [arr[j], arr[i]];
+    }
+    return arr;
+};
+
+// ✅ Arka arkaya aynı ilk kelime gelmesin
+const ensureDifferentFirstWord = async (words) => {
+    try {
+        const lastFirst = await AsyncStorage.getItem(LAST_FIRST_WORD_KEY);
+        if (!lastFirst || words.length <= 1) return words;
+
+        if (words[0]?.targetWord === lastFirst) {
+            const idx = words.findIndex((w) => w?.targetWord && w.targetWord !== lastFirst);
+            if (idx > 0) {
+                const newWords = [...words];
+                const tmp = newWords[0];
+                newWords[0] = newWords[idx];
+                newWords[idx] = tmp;
+                return newWords;
+            }
+        }
+        return words;
+    } catch (e) {
+        return words;
+    }
+};
 
 export default function GameScreen({ navigation }) {
     const [state, dispatch] = useReducer(gameReducer, initialState);
@@ -44,39 +82,106 @@ export default function GameScreen({ navigation }) {
     // UI tarafında modal/round kontrolü
     const [round, setRound] = useState(1);
 
+    // ✅ Interval güvenliği (UI değiştirmeden)
+    const intervalRef = useRef(null);
+
     // 1) Oyun hazırlığı: ayarları yükle + kelimeleri yükle
     useEffect(() => {
         const initGame = async () => {
             try {
                 await loadSettings();
 
-                const cached = await AsyncStorage.getItem("WORDS");
+                // 1) Yeni cache formatını dene
+                const cachedV1 = await AsyncStorage.getItem(WORDS_CACHE_KEY);
 
-                if (cached && cached !== "undefined") {
-                    console.log("Using cached words");
-                    const parsed = JSON.parse(cached);
-                    if (Array.isArray(parsed)) {
-                        dispatch({ type: "SET_WORDS", payload: parsed });
+                if (cachedV1 && cachedV1 !== "undefined") {
+                    const parsed = JSON.parse(cachedV1);
+
+                    const isValidVersion = parsed?.version === CACHE_VERSION;
+                    const fetchedAt = parsed?.fetchedAt || 0;
+                    const isNotExpired = Date.now() - fetchedAt < CACHE_TTL_MS;
+                    const hasWords = Array.isArray(parsed?.words) && parsed.words.length > 0;
+
+                    if (isValidVersion && isNotExpired && hasWords) {
+                        let shuffled = shuffleWords(parsed.words);
+                        shuffled = await ensureDifferentFirstWord(shuffled);
+
+                        dispatch({ type: "SET_WORDS", payload: shuffled });
+                        await AsyncStorage.setItem(LAST_FIRST_WORD_KEY, shuffled[0]?.targetWord || "");
+                        return;
+                    }
+                }
+
+                // 2) Eski cache "WORDS" varsa migrate et
+                const oldCached = await AsyncStorage.getItem("WORDS");
+                if (oldCached && oldCached !== "undefined") {
+                    const oldParsed = JSON.parse(oldCached);
+                    if (Array.isArray(oldParsed) && oldParsed.length > 0) {
+                        const payload = {
+                            version: CACHE_VERSION,
+                            fetchedAt: Date.now(),
+                            words: oldParsed,
+                        };
+                        await AsyncStorage.setItem(WORDS_CACHE_KEY, JSON.stringify(payload));
+                        // artık eskisini tutmaya gerek yok ama bozmayalım diye kaldırmıyorum.
+                        // await AsyncStorage.removeItem("WORDS");
+
+                        let shuffled = shuffleWords(oldParsed);
+                        shuffled = await ensureDifferentFirstWord(shuffled);
+
+                        dispatch({ type: "SET_WORDS", payload: shuffled });
+                        await AsyncStorage.setItem(LAST_FIRST_WORD_KEY, shuffled[0]?.targetWord || "");
+                        return;
                     } else {
                         await AsyncStorage.removeItem("WORDS");
                     }
-                } else {
-                    console.log("Fetching new words from Firebase...");
-                    const words = await getWordBatch();
-                    const wordList = Array.isArray(words) ? words : [];
-                    const shuffled = wordList.sort(() => Math.random() - 0.5);
-
-                    if (shuffled.length > 0) {
-                        await AsyncStorage.setItem("WORDS", JSON.stringify(shuffled));
-                    }
-                    dispatch({ type: "SET_WORDS", payload: shuffled });
                 }
+
+                // 3) Firebase’den kelime çek
+                console.log("Fetching new words from Firebase...");
+                const words = await getWordBatch();
+                const wordList = Array.isArray(words) ? words : [];
+
+                let shuffled = shuffleWords(wordList);
+                shuffled = await ensureDifferentFirstWord(shuffled);
+
+                // Cache’e kaydet (yeni format)
+                if (shuffled.length > 0) {
+                    const payload = {
+                        version: CACHE_VERSION,
+                        fetchedAt: Date.now(),
+                        words: wordList, // kaynak listeyi kaydet (sonra her oyunda shuffle)
+                    };
+                    await AsyncStorage.setItem(WORDS_CACHE_KEY, JSON.stringify(payload));
+                    await AsyncStorage.setItem(LAST_FIRST_WORD_KEY, shuffled[0]?.targetWord || "");
+                }
+
+                dispatch({ type: "SET_WORDS", payload: shuffled });
             } catch (e) {
                 console.log("CRITICAL ERROR in initGame:", e);
+
+                // UI değiştirmeden: bir kere cache temizleyip tekrar dene
+                try {
+                    await AsyncStorage.removeItem(WORDS_CACHE_KEY);
+                    await AsyncStorage.removeItem("WORDS");
+                } catch (_) { }
+
+                try {
+                    const words = await getWordBatch();
+                    const wordList = Array.isArray(words) ? words : [];
+                    const shuffled = shuffleWords(wordList);
+                    dispatch({ type: "SET_WORDS", payload: shuffled });
+                } catch (e2) {
+                    console.log("CRITICAL ERROR in retry initGame:", e2);
+                }
             }
         };
 
         initGame();
+
+        return () => {
+            if (intervalRef.current) clearInterval(intervalRef.current);
+        };
     }, []);
 
     // Ayarlar yüklendiğinde reducer'ı güncelle
@@ -90,13 +195,22 @@ export default function GameScreen({ navigation }) {
 
     // 3) Timer
     useEffect(() => {
-        if (!state.isActive) return;
+        if (!state.isActive) {
+            if (intervalRef.current) clearInterval(intervalRef.current);
+            intervalRef.current = null;
+            return;
+        }
 
-        const interval = setInterval(() => {
+        if (intervalRef.current) clearInterval(intervalRef.current);
+
+        intervalRef.current = setInterval(() => {
             dispatch({ type: "TICK" });
         }, 1000);
 
-        return () => clearInterval(interval);
+        return () => {
+            if (intervalRef.current) clearInterval(intervalRef.current);
+            intervalRef.current = null;
+        };
     }, [state.isActive]);
 
     // 4) Tur bitince
