@@ -1,4 +1,4 @@
-import React, { useEffect, useReducer, useRef, useState } from "react";
+import React, { useEffect, useReducer, useRef } from "react";
 import {
     View,
     Text,
@@ -42,9 +42,7 @@ const ensureDifferentFirstWord = async (words) => {
         if (!lastFirst || words.length <= 1) return words;
 
         if (words[0]?.targetWord === lastFirst) {
-            const idx = words.findIndex(
-                (w) => w?.targetWord && w.targetWord !== lastFirst
-            );
+            const idx = words.findIndex((w) => w?.targetWord && w.targetWord !== lastFirst);
             if (idx > 0) {
                 const newWords = [...words];
                 const tmp = newWords[0];
@@ -85,9 +83,6 @@ export default function GameScreen({ navigation }) {
         }
     };
 
-    // UI tarafında modal/round kontrolü
-    const [round, setRound] = useState(1);
-
     // ✅ Interval güvenliği
     const intervalRef = useRef(null);
 
@@ -106,18 +101,14 @@ export default function GameScreen({ navigation }) {
                     const isValidVersion = parsed?.version === CACHE_VERSION;
                     const fetchedAt = parsed?.fetchedAt || 0;
                     const isNotExpired = Date.now() - fetchedAt < CACHE_TTL_MS;
-                    const hasWords =
-                        Array.isArray(parsed?.words) && parsed.words.length > 0;
+                    const hasWords = Array.isArray(parsed?.words) && parsed.words.length > 0;
 
                     if (isValidVersion && isNotExpired && hasWords) {
                         let shuffled = shuffleWords(parsed.words);
                         shuffled = await ensureDifferentFirstWord(shuffled);
 
                         dispatch({ type: "SET_WORDS", payload: shuffled });
-                        await AsyncStorage.setItem(
-                            LAST_FIRST_WORD_KEY,
-                            shuffled[0]?.targetWord || ""
-                        );
+                        await AsyncStorage.setItem(LAST_FIRST_WORD_KEY, shuffled[0]?.targetWord || "");
                         return;
                     }
                 }
@@ -139,10 +130,7 @@ export default function GameScreen({ navigation }) {
                         shuffled = await ensureDifferentFirstWord(shuffled);
 
                         dispatch({ type: "SET_WORDS", payload: shuffled });
-                        await AsyncStorage.setItem(
-                            LAST_FIRST_WORD_KEY,
-                            shuffled[0]?.targetWord || ""
-                        );
+                        await AsyncStorage.setItem(LAST_FIRST_WORD_KEY, shuffled[0]?.targetWord || "");
                         return;
                     } else {
                         await AsyncStorage.removeItem("WORDS");
@@ -165,10 +153,7 @@ export default function GameScreen({ navigation }) {
                         words: wordList, // kaynak listeyi kaydet (sonra her oyunda shuffle)
                     };
                     await AsyncStorage.setItem(WORDS_CACHE_KEY, JSON.stringify(payload));
-                    await AsyncStorage.setItem(
-                        LAST_FIRST_WORD_KEY,
-                        shuffled[0]?.targetWord || ""
-                    );
+                    await AsyncStorage.setItem(LAST_FIRST_WORD_KEY, shuffled[0]?.targetWord || "");
                 }
 
                 dispatch({ type: "SET_WORDS", payload: shuffled });
@@ -199,14 +184,20 @@ export default function GameScreen({ navigation }) {
         };
     }, [loadSettings]);
 
-    // Ayarlar yüklendiğinde reducer'ı güncelle
+    // 2) Ayarlar yüklendiğinde reducer'ı güncelle
     useEffect(() => {
         if (!settings) return;
+
         dispatch({
             type: "INIT_SETTINGS",
-            payload: { duration: settings.duration, maxPass: settings.maxPass },
+            payload: {
+                duration: settings.duration,
+                maxPass: settings.maxPass,
+                // ✅ YENİ
+                roundsPerTeam: settings.roundsPerTeam,
+            },
         });
-    }, [settings?.duration, settings?.maxPass]);
+    }, [settings?.duration, settings?.maxPass, settings?.roundsPerTeam]);
 
     // 3) Timer
     useEffect(() => {
@@ -228,17 +219,22 @@ export default function GameScreen({ navigation }) {
         };
     }, [state.isActive]);
 
-    // 4) Tur bitince
+    // 4) Tur bitince (timeLeft 0'a düşünce reducer isActive=false yapıyor)
     useEffect(() => {
         if (state.timeLeft === 0 && state.isActive === false && !state.isGameOver) {
-            const teamScore =
-                state.activeTeam === "A" ? state.teamAScore : state.teamBScore;
+            const teamScore = state.activeTeam === "A" ? state.teamAScore : state.teamBScore;
 
+            // Bu noktada activeTeam = turu bitiren takım
             logRoundEnd(state.activeTeam, teamScore);
 
             dispatch({
                 type: "NEXT_ROUND",
-                payload: { duration: settings?.duration, maxPass: settings?.maxPass },
+                payload: {
+                    duration: settings?.duration,
+                    maxPass: settings?.maxPass,
+                    // ✅ YENİ
+                    roundsPerTeam: settings?.roundsPerTeam,
+                },
             });
         }
     }, [
@@ -250,6 +246,7 @@ export default function GameScreen({ navigation }) {
         state.teamBScore,
         settings?.duration,
         settings?.maxPass,
+        settings?.roundsPerTeam,
     ]);
 
     // 5) Oyun tamamen bitince
@@ -259,9 +256,7 @@ export default function GameScreen({ navigation }) {
         const finalize = async () => {
             try {
                 const winnerScore =
-                    state.teamAScore > state.teamBScore
-                        ? state.teamAScore
-                        : state.teamBScore;
+                    state.teamAScore > state.teamBScore ? state.teamAScore : state.teamBScore;
 
                 // Skor kaydı (hata olsa da akış devam etsin)
                 try {
@@ -284,13 +279,7 @@ export default function GameScreen({ navigation }) {
         };
 
         finalize();
-    }, [
-        state.isGameOver,
-        state.teamAScore,
-        state.teamBScore,
-        navigation,
-        setFinalScores,
-    ]);
+    }, [state.isGameOver, state.teamAScore, state.teamBScore, navigation, setFinalScores]);
 
     // 6) Aksiyonlar
     const onCorrect = () => {
@@ -312,7 +301,6 @@ export default function GameScreen({ navigation }) {
 
     const startNextTurn = () => {
         dispatch({ type: "START_TURN" });
-        setRound(2);
     };
 
     if (state.loading && !state.words?.length) {
@@ -324,13 +312,22 @@ export default function GameScreen({ navigation }) {
     }
 
     const currentWord = state.words?.[state.currentIndex];
-    const activeTeamName =
-        state.activeTeam === "A" ? settings?.teamAName : settings?.teamBName;
+    const activeTeamName = state.activeTeam === "A" ? settings?.teamAName : settings?.teamBName;
+
+    // ✅ Modalda göstermek için: önceki takım (turu bitiren takım)
+    // NEXT_ROUND sonrası activeTeam = sıradaki takım olduğu için, önceki takım = tersidir.
+    const prevTeam = state.activeTeam === "A" ? "B" : "A";
+    const prevTeamName = prevTeam === "A" ? settings?.teamAName : settings?.teamBName;
+    const prevTeamScore = prevTeam === "A" ? state.teamAScore : state.teamBScore;
 
     // Timer formatı
     const timer = state.timeLeft || 0;
     const mm = Math.floor(timer / 60);
     const ss = timer % 60 < 10 ? `0${timer % 60}` : timer % 60;
+
+    // ✅ Tur göstergesi
+    const totalRounds = state.roundsPerTeam ?? settings?.roundsPerTeam ?? 4;
+    const roundLabel = `${state.roundNumber ?? 1}/${totalRounds}`;
 
     return (
         <SafeAreaView className="flex-1 bg-slate-50">
@@ -347,19 +344,20 @@ export default function GameScreen({ navigation }) {
                     </Text>
                 </View>
 
-                <View className="bg-indigo-600 px-6 py-2 rounded-2xl shadow-lg shadow-indigo-200 mx-4">
-                    <Text className="text-white font-black text-xl">
-                        {mm}:{ss}
+                <View className="items-center mx-4">
+                    <View className="bg-indigo-600 px-6 py-2 rounded-2xl shadow-lg shadow-indigo-200">
+                        <Text className="text-white font-black text-xl">
+                            {mm}:{ss}
+                        </Text>
+                    </View>
+                    <Text className="text-slate-400 text-[10px] font-bold uppercase mt-2">
+                        TUR {roundLabel}
                     </Text>
                 </View>
 
                 <View className="items-center flex-1">
-                    <Text className="text-slate-400 text-[10px] font-bold uppercase">
-                        Pas
-                    </Text>
-                    <Text className="text-amber-500 text-3xl font-black">
-                        {state.passCount}
-                    </Text>
+                    <Text className="text-slate-400 text-[10px] font-bold uppercase">Pas</Text>
+                    <Text className="text-amber-500 text-3xl font-black">{state.passCount}</Text>
                 </View>
             </View>
 
@@ -417,14 +415,9 @@ export default function GameScreen({ navigation }) {
                 </TouchableOpacity>
             </View>
 
-            {/* Tur Değişimi Modalı */}
+            {/* ✅ Tur Değişimi Modalı (Her geçişte görünür: A->B, B->A) */}
             <Modal
-                visible={
-                    !state.isActive &&
-                    !state.isGameOver &&
-                    state.activeTeam === "B" &&
-                    round === 1
-                }
+                visible={!state.isActive && !state.isGameOver && state.timeLeft > 0}
                 transparent
                 animationType="slide"
             >
@@ -439,19 +432,19 @@ export default function GameScreen({ navigation }) {
                         </Text>
 
                         <Text className="text-indigo-600 text-3xl font-black mb-1 text-center">
-                            {settings?.teamAName}
+                            {prevTeamName}
                         </Text>
-                        <Text className="text-5xl font-black text-slate-800 mb-6">
-                            {state.teamAScore}
+                        <Text className="text-5xl font-black text-slate-800 mb-2">{prevTeamScore}</Text>
+
+                        <Text className="text-slate-400 text-xs font-bold uppercase tracking-widest mb-6">
+                            TUR {roundLabel}
                         </Text>
 
                         <View className="w-full h-[1px] bg-slate-100 mb-6" />
 
                         <Text className="text-slate-500 font-bold mb-8 text-center text-lg leading-6">
                             Harika iş çıkardınız!{"\n"}Şimdi sıra{" "}
-                            <Text className="text-indigo-600 font-black">
-                                {settings?.teamBName}
-                            </Text>{" "}
+                            <Text className="text-indigo-600 font-black">{activeTeamName}</Text>{" "}
                             ekibinde.
                         </Text>
 
@@ -460,7 +453,7 @@ export default function GameScreen({ navigation }) {
                             onPress={startNextTurn}
                         >
                             <Text className="text-white font-black text-center text-xl uppercase tracking-widest">
-                                {settings?.teamBName} BAŞLASIN!
+                                {activeTeamName} BAŞLASIN!
                             </Text>
                         </TouchableOpacity>
                     </View>

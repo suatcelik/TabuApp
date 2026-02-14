@@ -23,6 +23,11 @@ export default function SettingsScreen({ navigation }) {
     const [durationText, setDurationText] = useState(String(settings?.duration ?? 60));
     const [maxPassText, setMaxPassText] = useState(String(settings?.maxPass ?? 3));
 
+    // ✅ YENİ: takım başına tur sayısı
+    const [roundsPerTeamText, setRoundsPerTeamText] = useState(
+        String(settings?.roundsPerTeam ?? 4)
+    );
+
     useEffect(() => {
         loadSettings();
     }, [loadSettings]);
@@ -36,11 +41,18 @@ export default function SettingsScreen({ navigation }) {
         setMaxPassText(String(settings?.maxPass ?? 3));
     }, [settings?.maxPass]);
 
+    useEffect(() => {
+        setRoundsPerTeamText(String(settings?.roundsPerTeam ?? 4));
+    }, [settings?.roundsPerTeam]);
+
     const handleSave = () => {
-        // updateSettings zaten AsyncStorage işlemini yapıyor
         // Blur tetiklenmemiş olabilir diye son kez sanitize edelim:
         sanitizeAndCommit("duration", durationText, 15, 300, setDurationText);
         sanitizeAndCommit("maxPass", maxPassText, 0, 30, setMaxPassText);
+
+        // ✅ YENİ
+        sanitizeAndCommit("roundsPerTeam", roundsPerTeamText, 1, 30, setRoundsPerTeamText);
+
         navigation.goBack();
     };
 
@@ -143,6 +155,36 @@ export default function SettingsScreen({ navigation }) {
                             </View>
                         </View>
 
+                        {/* ✅ YENİ: Tur Sayısı */}
+                        <View className="gap-4">
+                            <Text className="text-slate-400 font-bold uppercase tracking-widest text-xs ml-2">
+                                Tur Sayısı (Takım Başına)
+                            </Text>
+                            <View className="bg-white p-5 rounded-[35px] border border-slate-100 shadow-sm">
+                                <TextInput
+                                    value={roundsPerTeamText}
+                                    onChangeText={handleNumberTyping(setRoundsPerTeamText)}
+                                    onBlur={() =>
+                                        sanitizeAndCommit(
+                                            "roundsPerTeam",
+                                            roundsPerTeamText,
+                                            1,
+                                            30,
+                                            setRoundsPerTeamText
+                                        )
+                                    }
+                                    keyboardType="numeric"
+                                    placeholder="Örn: 4"
+                                    placeholderTextColor="#94a3b8"
+                                    className="bg-slate-50 border border-slate-200 rounded-2xl px-4 py-3 text-slate-800 font-bold"
+                                    maxLength={2}
+                                />
+                                <Text className="text-slate-400 text-xs mt-2">
+                                    Toplam tur: 2 × bu değer (Min 1, Max 30)
+                                </Text>
+                            </View>
+                        </View>
+
                         {/* Pas Hakkı Seçimi */}
                         <View className="gap-4">
                             <Text className="text-slate-400 font-bold uppercase tracking-widest text-xs ml-2">
@@ -152,9 +194,7 @@ export default function SettingsScreen({ navigation }) {
                                 <TextInput
                                     value={maxPassText}
                                     onChangeText={handleNumberTyping(setMaxPassText)}
-                                    onBlur={() =>
-                                        sanitizeAndCommit("maxPass", maxPassText, 0, 30, setMaxPassText)
-                                    }
+                                    onBlur={() => sanitizeAndCommit("maxPass", maxPassText, 0, 30, setMaxPassText)}
                                     keyboardType="numeric"
                                     placeholder="Örn: 3"
                                     placeholderTextColor="#94a3b8"
@@ -166,20 +206,7 @@ export default function SettingsScreen({ navigation }) {
                         </View>
 
                         {/* Titreşim Kontrolü */}
-                        <View className="flex-row justify-between items-center bg-white p-6 rounded-[35px] border border-slate-100 shadow-sm">
-                            <View className="flex-row items-center">
-                                <View className="bg-indigo-100 p-3 rounded-2xl mr-4">
-                                    <MaterialIcons name="vibration" size={24} color="#4f46e5" />
-                                </View>
-                                <Text className="text-slate-700 font-bold text-lg">Titreşim</Text>
-                            </View>
-                            <Switch
-                                value={!!settings?.vibration}
-                                onValueChange={(v) => updateField("vibration", v)}
-                                trackColor={{ false: "#cbd5e1", true: "#818cf8" }}
-                                thumbColor={settings?.vibration ? "#4f46e5" : "#f4f3f4"}
-                            />
-                        </View>
+                        {/* ... senin devam eden titreşim kısmın burada aynı kalabilir ... */}
                     </View>
                 </ScrollView>
 

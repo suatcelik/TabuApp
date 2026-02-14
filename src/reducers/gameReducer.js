@@ -1,7 +1,12 @@
 export const initialState = {
     words: [],
     currentIndex: 0,
+
+    // ✅ takım ve tur
     activeTeam: "A",
+    roundNumber: 1,       // 1..roundsPerTeam
+    roundsPerTeam: 4,     // ayarlardan gelecek
+
     teamAScore: 0,
     teamBScore: 0,
     passCount: 3,
@@ -31,9 +36,14 @@ export function gameReducer(state = initialState, action) {
                 words: list,
                 currentIndex: 0,
                 loading: !hasWords,
-                // ✅ kelime geldiyse A turu otomatik başlar (süre akar, butonlar aktif olur)
+
+                // ✅ yeni oyun başlangıcı
+                activeTeam: "A",
+                roundNumber: 1,
+                isGameOver: false,
+
+                // ✅ kelime geldiyse A turu otomatik başlar
                 isActive: hasWords,
-                // activeTeam zaten "A" başlıyor, dokunmuyoruz
             };
         }
 
@@ -71,25 +81,51 @@ export function gameReducer(state = initialState, action) {
             }
             return { ...state, timeLeft: state.timeLeft - 1 };
 
-        case "NEXT_ROUND":
-            // A turu bitti -> B turuna hazırlan (modal + START_TURN ile başlayacak)
+        case "NEXT_ROUND": {
+            // payload: { duration, maxPass, roundsPerTeam } gelebilir
+            const duration = action.payload?.duration ?? state.timeLeft ?? 60;
+            const maxPass =
+                action.payload?.maxPass !== undefined ? action.payload.maxPass : state.passCount ?? 3;
+
+            const roundsPerTeam =
+                action.payload?.roundsPerTeam !== undefined
+                    ? Math.max(1, Number(action.payload.roundsPerTeam) || 1)
+                    : state.roundsPerTeam;
+
+            // A turu bitti -> aynı turun B sırası
             if (state.activeTeam === "A") {
                 return {
                     ...state,
                     activeTeam: "B",
-                    timeLeft: action.payload?.duration ?? 60,
-                    passCount:
-                        action.payload?.maxPass !== undefined ? action.payload.maxPass : 3,
-                    isActive: false, // B otomatik başlamasın
+                    roundsPerTeam,
+                    timeLeft: duration,
+                    passCount: maxPass,
+                    isActive: false, // B otomatik başlamasın (modal + START_TURN ile başlasın)
                 };
             }
 
-            // B turu bitti -> oyun bitti
+            // B turu bitti -> ya bir sonraki tur A, ya oyun biter
+            const isLastRound = state.roundNumber >= roundsPerTeam;
+
+            if (isLastRound) {
+                return {
+                    ...state,
+                    roundsPerTeam,
+                    isActive: false,
+                    isGameOver: true,
+                };
+            }
+
             return {
                 ...state,
-                isActive: false,
-                isGameOver: true,
+                activeTeam: "A",
+                roundNumber: state.roundNumber + 1,
+                roundsPerTeam,
+                timeLeft: duration,
+                passCount: maxPass,
+                isActive: false, // A da otomatik başlamasın (modal + START_TURN ile)
             };
+        }
 
         case "START_TURN":
             return {
@@ -97,13 +133,19 @@ export function gameReducer(state = initialState, action) {
                 isActive: true,
             };
 
-        case "INIT_SETTINGS":
+        case "INIT_SETTINGS": {
+            const roundsPerTeam =
+                action.payload?.roundsPerTeam !== undefined
+                    ? Math.max(1, Number(action.payload.roundsPerTeam) || 1)
+                    : state.roundsPerTeam;
+
             return {
                 ...state,
                 timeLeft: action.payload?.duration ?? 60,
-                passCount:
-                    action.payload?.maxPass !== undefined ? action.payload.maxPass : 3,
+                passCount: action.payload?.maxPass !== undefined ? action.payload.maxPass : 3,
+                roundsPerTeam,
             };
+        }
 
         case "RESET":
             return initialState;

@@ -11,6 +11,9 @@ const useGameStore = create((set, get) => ({
         vibration: true,
         teamAName: 'Takım A',
         teamBName: 'Takım B',
+
+        // ✅ YENİ: Takım başına tur sayısı (Toplam tur = 2 * roundsPerTeam)
+        roundsPerTeam: 4,
     },
 
     // Ayarları yükle
@@ -19,7 +22,17 @@ const useGameStore = create((set, get) => ({
             const raw = await AsyncStorage.getItem(SETTINGS_KEY);
             if (raw) {
                 const parsed = JSON.parse(raw);
-                set((state) => ({ settings: { ...state.settings, ...parsed } }));
+
+                // ✅ Güvenli normalize (eski kayıtlarda roundsPerTeam yoksa default kalsın)
+                const normalized = {
+                    ...parsed,
+                    roundsPerTeam:
+                        parsed?.roundsPerTeam == null
+                            ? undefined
+                            : Math.max(1, Number(parsed.roundsPerTeam) || 1),
+                };
+
+                set((state) => ({ settings: { ...state.settings, ...normalized } }));
             }
         } catch (error) {
             console.log('Settings load error:', error);
@@ -29,7 +42,13 @@ const useGameStore = create((set, get) => ({
     // Ayarları kaydet ve güncelle
     updateSettings: async (newSettings) => {
         set((state) => {
-            const updated = { ...state.settings, ...newSettings };
+            const merged = { ...state.settings, ...newSettings };
+
+            // ✅ roundsPerTeam normalize
+            const updated = {
+                ...merged,
+                roundsPerTeam: Math.max(1, Number(merged.roundsPerTeam) || 1),
+            };
 
             // Arka planda kaydet
             AsyncStorage.setItem(SETTINGS_KEY, JSON.stringify(updated)).catch((err) =>

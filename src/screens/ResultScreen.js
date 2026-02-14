@@ -134,15 +134,6 @@ export default function ResultScreen({ navigation }) {
                             YENİ OYUN
                         </Text>
                     </TouchableOpacity>
-
-                    <TouchableOpacity
-                        className="w-full py-4 rounded-3xl border border-white/30"
-                        onPress={() => navigation.navigate("Home")}
-                    >
-                        <Text className="text-white text-center text-lg font-bold uppercase tracking-widest">
-                            ANA MENÜYE DÖN
-                        </Text>
-                    </TouchableOpacity>
                 </View>
             </View>
         </SafeAreaView>
