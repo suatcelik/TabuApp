@@ -15,6 +15,7 @@
 !.gitignore
 
 # Include source and assets
+!src
 !src/**
 !assets
 !assets/**
