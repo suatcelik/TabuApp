@@ -1,29 +1,13 @@
-# Exclude everything by default
-*
-
-# Include necessary files and folders
-!App.js
-!app.json
-!assets/
-!babel.config.js
-!eas.json
-!global.css
-!index.js
-!metro.config.js
-!package.json
-!package-lock.json
-!src/
-!tailwind.config.js
-!.gitignore
-
-# Exclude native folders (EAS will recreate them if needed, or use the ones it has)
-/ios
-/android
-
-# Exclude local build artifacts
+# Ignore local-only artifacts; include all project files by default.
+node_modules/
 .expo/
 dist/
 web-build/
-node_modules/
+
+# Generated native folders (prebuild/EAS manages these)
+/ios
+/android
+
+# Secrets and local tooling
 serviceAccountKey.json
 uploadWords.js
