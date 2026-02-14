@@ -1,29 +1,32 @@
-# Exclude everything by default
+# Exclude everything
 *
 
-# Include necessary files and folders
+# Include project root files
 !App.js
 !app.json
-!assets/**/*
 !babel.config.js
 !eas.json
-!global.css
 !index.js
 !metro.config.js
 !package.json
 !package-lock.json
-!src/
+!global.css
 !tailwind.config.js
 !.gitignore
 
-# Exclude native folders (EAS will recreate them if needed, or use the ones it has)
-/ios
-/android
+# Include source and assets
+!src/**
+!assets
+!assets/**
 
-# Exclude local build artifacts
-.expo/
-dist/
-web-build/
-node_modules/
+# Exclude native folders
+/android
+/ios
+
+# Exclude local artifacts
+.expo
+dist
+web-build
+node_modules
 serviceAccountKey.json
 uploadWords.js
