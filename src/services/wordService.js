@@ -1,4 +1,4 @@
-import { db } from '../services/firebaseConfig';
+import { db } from './firebaseConfig';
 import { collection, getDocs, query, limit } from 'firebase/firestore';
 
 /**
@@ -6,17 +6,25 @@ import { collection, getDocs, query, limit } from 'firebase/firestore';
  */
 export const getWordBatch = async (count = 100) => {
     try {
+        if (!db) {
+            console.error("❌ Firebase DB is not initialized!");
+            return [];
+        }
         const wordsCol = collection(db, 'words');
+        console.log("Firebase collection 'words' target successfully.");
 
-        // Rastgelelik için hepsini çekmek yerine bir limit koyabilirsin
-        // Şimdilik performansı artırmak için sorguyu optimize ediyoruz
         const q = query(wordsCol, limit(count));
         const wordSnapshot = await getDocs(q);
+        console.log("Fetched documents from Firebase:", wordSnapshot.docs.length);
 
-        const wordList = wordSnapshot.docs.map(doc => ({
-            id: doc.id,
-            ...doc.data()
-        }));
+        const wordList = wordSnapshot.docs.map(doc => {
+            const data = doc.data();
+            if (!data) console.warn("Document data is undefined for ID:", doc.id);
+            return {
+                id: doc.id,
+                ...(data || {})
+            };
+        });
 
         if (wordList.length === 0) {
             return [{

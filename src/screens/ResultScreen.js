@@ -1,23 +1,43 @@
 import React, { useEffect, useState } from 'react';
 import { View, Text, TouchableOpacity, SafeAreaView, StatusBar } from 'react-native';
 import ConfettiCannon from 'react-native-confetti-cannon';
+import { Audio } from 'expo-av';
 import useGameStore from '../store/useGameStore';
 import { Ionicons } from '@expo/vector-icons';
 
 export default function ResultScreen({ navigation }) {
-    // Zustand store'dan skorları ve oyunu sıfırlama fonksiyonunu alıyoruz
-    const { totalScores, resetGame } = useGameStore();
+    // Zustand store'dan skorları, ayarları ve oyunu sıfırlama fonksiyonunu alıyoruz
+    const { totalScores, settings, resetGame } = useGameStore();
     const [showConfetti, setShowConfetti] = useState(false);
 
     // Kazananı belirle
-    const winner = totalScores.A > totalScores.B ? 'A' : totalScores.B > totalScores.A ? 'B' : 'Berabere';
+    const winnerKey = totalScores.A > totalScores.B ? 'A' : totalScores.B > totalScores.A ? 'B' : 'Draw';
+    const winnerName = winnerKey === 'A' ? settings.teamAName : winnerKey === 'B' ? settings.teamBName : 'Berabere';
+
+    async function playWinSound() {
+        try {
+            const { sound } = await Audio.Sound.createAsync(
+                require('../../assets/success.mp3')
+            );
+            await sound.playAsync();
+            sound.setOnPlaybackStatusUpdate((status) => {
+                if (status.didJustFinish) sound.unloadAsync();
+            });
+        } catch (error) {
+            console.log("Win sound error:", error);
+        }
+    }
 
     useEffect(() => {
-        // Eğer bir kazanan varsa konfeti patlat
-        if (winner !== 'Berabere') {
-            setShowConfetti(true);
+        // Eğer bir kazanan varsa konfeti patlat ve ses çal
+        if (winnerKey !== 'Draw') {
+            const timer = setTimeout(() => {
+                setShowConfetti(true);
+                playWinSound();
+            }, 500);
+            return () => clearTimeout(timer);
         }
-    }, []);
+    }, [winnerKey]);
 
     const handleNewGame = () => {
         resetGame(); // Skorları sıfırla
@@ -49,8 +69,8 @@ export default function ResultScreen({ navigation }) {
                     Oyun Bitti!
                 </Text>
 
-                <Text className="text-indigo-200 text-lg font-bold mb-12 uppercase tracking-widest">
-                    {winner === 'Berabere' ? 'Dostluk Kazandı!' : `TAKIM ${winner} KAZANDI!`}
+                <Text className="text-indigo-200 text-lg font-bold mb-12 uppercase tracking-widest text-center px-4">
+                    {winnerKey === 'Draw' ? 'Dostluk Kazandı!' : `${winnerName} KAZANDI!`}
                 </Text>
 
                 {/* Skor Tablosu */}
@@ -58,20 +78,24 @@ export default function ResultScreen({ navigation }) {
                     <View className="flex-row justify-around items-center">
 
                         {/* Takım A */}
-                        <View className="items-center">
-                            <Text className="text-indigo-300 font-bold mb-2">TAKIM A</Text>
-                            <Text className={`text-6xl font-black ${winner === 'A' ? 'text-amber-400' : 'text-white'}`}>
+                        <View className="items-center flex-1">
+                            <Text className="text-indigo-300 font-bold mb-2 uppercase text-xs text-center" numberOfLines={1}>
+                                {settings.teamAName}
+                            </Text>
+                            <Text className={`text-6xl font-black ${winnerKey === 'A' ? 'text-amber-400' : 'text-white'}`}>
                                 {totalScores.A}
                             </Text>
                         </View>
 
                         {/* Ayırıcı Çizgi */}
-                        <View className="h-16 w-[1px] bg-white/20" />
+                        <View className="h-16 w-[1px] bg-white/20 mx-2" />
 
                         {/* Takım B */}
-                        <View className="items-center">
-                            <Text className="text-indigo-300 font-bold mb-2">TAKIM B</Text>
-                            <Text className={`text-6xl font-black ${winner === 'B' ? 'text-amber-400' : 'text-white'}`}>
+                        <View className="items-center flex-1">
+                            <Text className="text-indigo-300 font-bold mb-2 uppercase text-xs text-center" numberOfLines={1}>
+                                {settings.teamBName}
+                            </Text>
+                            <Text className={`text-6xl font-black ${winnerKey === 'B' ? 'text-amber-400' : 'text-white'}`}>
                                 {totalScores.B}
                             </Text>
                         </View>

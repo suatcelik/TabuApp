@@ -1,6 +1,9 @@
 import { create } from 'zustand';
 import * as Haptics from 'expo-haptics';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { getWordBatch } from '../services/wordService';
+
+const SETTINGS_KEY = "GAME_SETTINGS";
 
 const useGameStore = create((set, get) => ({
     // --- BAŞLANGIÇ AYARLARI ---
@@ -8,13 +11,15 @@ const useGameStore = create((set, get) => ({
         duration: 60,
         maxPass: 3,
         vibration: true,
+        teamAName: "Takım A",
+        teamBName: "Takım B",
     },
 
     // --- OYUN DURUMU (STATE) ---
     totalScores: { A: 0, B: 0 },
     currentTeam: 'A',    // Sıradaki takım
-    currentScore: 0,   // O anki aktif turun puanı
-    passCount: 0,      // O anki turda kullanılan pas
+    currentScore: 0,     // O anki aktif turun puanı
+    passCount: 0,        // O anki turda kullanılan pas
 
     // --- KELİME YÖNETİMİ ---
     wordPool: [],      // Firebase'den gelen 100 kelimelik havuz
@@ -22,8 +27,31 @@ const useGameStore = create((set, get) => ({
     isLoading: false,
 
     // --- AYAR VE SKOR FONKSİYONLARI ---
-    setSettings: (newSettings) =>
-        set((state) => ({ settings: { ...state.settings, ...newSettings } })),
+
+    // Ayarları yükle
+    loadSettings: async () => {
+        try {
+            const raw = await AsyncStorage.getItem(SETTINGS_KEY);
+            if (raw) {
+                const parsed = JSON.parse(raw);
+                set((state) => ({ settings: { ...state.settings, ...parsed } }));
+            }
+        } catch (error) {
+            console.log("Settings load error:", error);
+        }
+    },
+
+    // Ayarları kaydet ve güncelle
+    updateSettings: async (newSettings) => {
+        set((state) => {
+            const updated = { ...state.settings, ...newSettings };
+            // Arka planda kaydet
+            AsyncStorage.setItem(SETTINGS_KEY, JSON.stringify(updated)).catch(err =>
+                console.log("Settings save error:", err)
+            );
+            return { settings: updated };
+        });
+    },
 
     // Tur bitince mevcut puanı ilgili takıma ekler
     finalizeTurn: () => {
@@ -38,6 +66,9 @@ const useGameStore = create((set, get) => ({
             currentTeam: currentTeam === 'A' ? 'B' : 'A' // Takım değiştir
         });
     },
+
+    // Skorları doğrudan set eder (Reducer ile senkronizasyon için)
+    setFinalScores: (scores) => set({ totalScores: scores }),
 
     // --- PERFORMANS VE OYUN MANTIĞI ---
 

@@ -6,7 +6,7 @@ import {
     orderBy,
     limit,
 } from "firebase/firestore";
-import { db } from "../services/firebaseConfig";
+import { db } from "./firebaseConfig";
 
 export const saveScore = async (name, score) => {
     await addDoc(collection(db, "leaderboard"), {

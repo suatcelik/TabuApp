@@ -8,9 +8,11 @@ export const initialState = {
     timeLeft: 60,
     isActive: false,
     loading: true,
+    isGameOver: false,
 };
 
-export function gameReducer(state, action) {
+export function gameReducer(state = initialState, action) {
+    if (!state) return initialState;
     switch (action.type) {
         case "SET_WORDS":
             return {
@@ -67,16 +69,30 @@ export function gameReducer(state, action) {
                 return {
                     ...state,
                     activeTeam: "B",
-                    timeLeft: 60,
-                    passCount: 3,
-                    isActive: true,
+                    timeLeft: action.payload?.duration || 60,
+                    passCount: action.payload?.maxPass !== undefined ? action.payload.maxPass : 3,
+                    isActive: false, // Don't start automatically
                 };
             } else {
                 return {
                     ...state,
                     isActive: false,
+                    isGameOver: true,
                 };
             }
+
+        case "START_TURN":
+            return {
+                ...state,
+                isActive: true,
+            };
+
+        case "INIT_SETTINGS":
+            return {
+                ...state,
+                timeLeft: action.payload.duration || 60,
+                passCount: action.payload.maxPass !== undefined ? action.payload.maxPass : 3,
+            };
 
         case "RESET":
             return initialState;

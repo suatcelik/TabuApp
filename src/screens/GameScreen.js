@@ -16,40 +16,63 @@ import { getWordBatch } from "../services/wordService";
 import { gameReducer, initialState } from "../reducers/gameReducer";
 import { saveScore } from "../services/leaderboardService";
 import { logGameStart, logRoundEnd } from "../services/analyticsService";
+import useGameStore from "../store/useGameStore";
 
 export default function GameScreen({ navigation }) {
     const [state, dispatch] = useReducer(gameReducer, initialState);
+    const { settings, loadSettings, setFinalScores } = useGameStore();
 
     // UI tarafında timer formatı için local state yerine reducer’daki timeLeft kullanacağız.
-    // Round modal kontrolü için: reducer’da isActive false olunca modal açılır (A tur bitince).
     const [round, setRound] = useState(1);
 
-    // 1) Oyun hazırlığı: kelimeleri yükle + oyun başlat
+    // 1) Oyun hazırlığı: ayarları yükle + kelimeleri yükle
     useEffect(() => {
         const initGame = async () => {
             try {
+                // Ayarları yükle (persistence için)
+                await loadSettings();
+
                 const cached = await AsyncStorage.getItem("WORDS");
 
-                if (cached) {
-                    dispatch({ type: "SET_WORDS", payload: JSON.parse(cached) });
+                if (cached && cached !== "undefined") {
+                    console.log("Using cached words");
+                    const parsed = JSON.parse(cached);
+                    if (Array.isArray(parsed)) {
+                        dispatch({ type: "SET_WORDS", payload: parsed });
+                    } else {
+                        await AsyncStorage.removeItem("WORDS");
+                    }
                 } else {
-                    const words = await getWordBatch(); // senin servis fonksiyonun
-                    const shuffled = words.sort(() => Math.random() - 0.5);
-                    await AsyncStorage.setItem("WORDS", JSON.stringify(shuffled));
+                    console.log("Fetching new words from Firebase...");
+                    const words = await getWordBatch();
+                    const wordList = Array.isArray(words) ? words : [];
+                    const shuffled = wordList.sort(() => Math.random() - 0.5);
+                    if (shuffled.length > 0) {
+                        await AsyncStorage.setItem("WORDS", JSON.stringify(shuffled));
+                    }
                     dispatch({ type: "SET_WORDS", payload: shuffled });
                 }
 
                 await Audio.setAudioModeAsync({ playsInSilentModeIOS: true });
-                await logGameStart();
             } catch (e) {
-                console.log("Word load error:", e);
+                console.log("CRITICAL ERROR in initGame:", e);
             }
         };
 
         initGame();
     }, []);
 
-    // 2) Ses çalma (UI dosyanla aynı davranış)
+    // Ayarlar yüklendiğinde reducer'ı güncelle
+    useEffect(() => {
+        if (settings) {
+            dispatch({
+                type: "INIT_SETTINGS",
+                payload: { duration: settings.duration, maxPass: settings.maxPass }
+            });
+        }
+    }, [settings.duration, settings.maxPass]);
+
+    // 2) Ses çalma
     async function playSound(type) {
         try {
             const { sound } = await Audio.Sound.createAsync(
@@ -66,7 +89,7 @@ export default function GameScreen({ navigation }) {
         }
     }
 
-    // 3) Timer (reducer timeLeft ile)
+    // 3) Timer
     useEffect(() => {
         if (!state.isActive) return;
 
@@ -77,35 +100,39 @@ export default function GameScreen({ navigation }) {
         return () => clearInterval(interval);
     }, [state.isActive]);
 
-    // 4) Tur bitince (timeLeft 0) -> analytics + NEXT_ROUND + round state güncelle
+    // 4) Tur bitince
     useEffect(() => {
-        if (state.timeLeft === 0 && state.isActive === false) {
+        if (state.timeLeft === 0 && state.isActive === false && !state.isGameOver) {
             const teamScore = state.activeTeam === "A" ? state.teamAScore : state.teamBScore;
             logRoundEnd(state.activeTeam, teamScore);
 
-            // A bittiyse B’ye geçer, B bittiyse oyun biter (reducer NEXT_ROUND mantığına göre)
-            dispatch({ type: "NEXT_ROUND" });
+            // A bittiyse B’ye geçer, B bittiyse oyun biter
+            dispatch({
+                type: "NEXT_ROUND",
+                payload: { duration: settings.duration, maxPass: settings.maxPass }
+            });
 
-            // UI için round takibi (Modal mesajında kullanıyordun)
             setRound((r) => (r === 1 ? 2 : r));
         }
-    }, [state.timeLeft, state.isActive, state.activeTeam, state.teamAScore, state.teamBScore]);
+    }, [state.timeLeft, state.isActive, state.isGameOver, state.activeTeam, settings.duration, settings.maxPass]);
 
-    // 5) Oyun tamamen bitince leaderboard’a kaydet (B turu bitince)
+    // 5) Oyun tamamen bitince
     useEffect(() => {
-        // reducer’da B bittiğinde: isActive false kalır ve activeTeam "B" olur
-        if (!state.isActive && state.activeTeam === "B" && state.timeLeft === 0) {
+        if (state.isGameOver) {
             const winnerScore =
                 state.teamAScore > state.teamBScore ? state.teamAScore : state.teamBScore;
 
             saveScore("Player", winnerScore);
+            setFinalScores({ A: state.teamAScore, B: state.teamBScore });
 
-            // İstersen sonuç ekranına geç
-            // navigation?.navigate?.("Result");
+            const timerId = setTimeout(() => {
+                navigation?.replace?.("Result");
+            }, 1000);
+            return () => clearTimeout(timerId);
         }
-    }, [state.isActive, state.activeTeam, state.timeLeft, state.teamAScore, state.teamBScore, navigation]);
+    }, [state.isGameOver, state.teamAScore, state.teamBScore, navigation, setFinalScores]);
 
-    // 6) Aksiyonlar (UI dosyandaki butonlar)
+    // 6) Aksiyonlar
     const onCorrect = () => {
         if (!state.isActive) return;
         dispatch({ type: "SUCCESS" });
@@ -123,15 +150,8 @@ export default function GameScreen({ navigation }) {
         dispatch({ type: "PASS" });
     };
 
-    // UI’daki “HAZIRIZ” butonu: round 2’ye geçiş için
     const startNextTurn = () => {
-        // Eğer reducer NEXT_ROUND zaten B’yi başlattıysa, burada ekstra bir şey yapmaya gerek kalmayabilir.
-        // Ama senin UI akışın “butona basınca başlasın” diyor.
-        // Bu yüzden: A turu bittiğinde reducer NEXT_ROUND ile B’yi isActive:true yapıyor.
-        // Sen “modal açıldı, butona basınca devam” istiyorsan reducer’a "PAUSE/RESUME" eklemek gerekir.
-        // ŞİMDİLİK pratik çözüm: A turu bitince modal gösteriyoruz ve butona basınca sadece modalı kapatmak için timeLeft>0 iken isActive zaten true olacak.
-        // Eğer sende A tur biter bitmez B otomatik başlıyorsa ve modal varken sayıyorsa, söyle: sana 1 aksiyonla "WAITING_NEXT" state ekleyip tam istediğin gibi yapayım.
-        // Burada yalnızca round state’i ayarlıyoruz:
+        dispatch({ type: "START_TURN" });
         setRound(2);
     };
 
@@ -144,6 +164,7 @@ export default function GameScreen({ navigation }) {
     }
 
     const currentWord = state.words?.[state.currentIndex];
+    const activeTeamName = state.activeTeam === "A" ? settings.teamAName : settings.teamBName;
 
     // Timer formatı
     const timer = state.timeLeft;
@@ -154,31 +175,30 @@ export default function GameScreen({ navigation }) {
         <SafeAreaView className="flex-1 bg-slate-50">
             <StatusBar barStyle="dark-content" />
 
-            {/* Üst Bilgi Çubuğu (UI aynen) */}
+            {/* Üst Bilgi Çubuğu */}
             <View className="flex-row justify-between items-center px-6 py-4 bg-white shadow-sm">
-                <View className="items-center">
-                    <Text className="text-slate-400 text-xs font-bold uppercase">Skor</Text>
+                <View className="items-center flex-1">
+                    <Text className="text-slate-400 text-[10px] font-bold uppercase">{activeTeamName}</Text>
                     <Text className="text-indigo-600 text-3xl font-black">
                         {state.activeTeam === "A" ? state.teamAScore : state.teamBScore}
                     </Text>
                 </View>
 
-                <View className="bg-indigo-600 px-6 py-2 rounded-2xl shadow-lg shadow-indigo-200">
+                <View className="bg-indigo-600 px-6 py-2 rounded-2xl shadow-lg shadow-indigo-200 mx-4">
                     <Text className="text-white font-black text-xl">
                         {mm}:{ss}
                     </Text>
                 </View>
 
-                <View className="items-center">
-                    <Text className="text-slate-400 text-xs font-bold uppercase">Pas</Text>
+                <View className="items-center flex-1">
+                    <Text className="text-slate-400 text-[10px] font-bold uppercase">Pas</Text>
                     <Text className="text-amber-500 text-3xl font-black">
-                        {/* Senin eski UI “kullanılan pas” gösteriyordu; reducer “kalan pas” tutuyor */}
                         {state.passCount}
                     </Text>
                 </View>
             </View>
 
-            {/* Kelime Kartı (UI aynen) */}
+            {/* Kelime Kartı */}
             <View className="flex-1 justify-center px-8">
                 <View className="bg-white rounded-[45px] shadow-2xl overflow-hidden border border-slate-100">
                     <View className="bg-indigo-500 py-10 items-center">
@@ -202,7 +222,7 @@ export default function GameScreen({ navigation }) {
                 </View>
             </View>
 
-            {/* Kontrol Butonları (UI aynen) */}
+            {/* Kontrol Butonları */}
             <View className="flex-row justify-between px-6 pb-10 space-x-4">
                 <TouchableOpacity
                     className="flex-1 bg-rose-500 h-24 rounded-3xl items-center justify-center shadow-lg shadow-rose-200 active:scale-95"
@@ -214,7 +234,7 @@ export default function GameScreen({ navigation }) {
                 </TouchableOpacity>
 
                 <TouchableOpacity
-                    className="flex-1 bg-amber-400 h-24 rounded-3xl items-center justify-center shadow-lg shadow-amber-200 active:scale-95"
+                    className="flex-1 bg-amber-300 h-24 rounded-3xl items-center justify-center shadow-lg shadow-amber-200 active:scale-95"
                     onPress={onPass}
                     disabled={!state.isActive}
                 >
@@ -223,7 +243,7 @@ export default function GameScreen({ navigation }) {
                 </TouchableOpacity>
 
                 <TouchableOpacity
-                    className="flex-1 bg-emerald-500 h-24 rounded-3xl items-center justify-center shadow-lg shadow-emerald-200 active:scale-95"
+                    className="flex-1 bg-cyan-700 h-24 rounded-3xl items-center justify-center shadow-lg shadow-emerald-200 active:scale-95"
                     onPress={onCorrect}
                     disabled={!state.isActive}
                 >
@@ -232,26 +252,34 @@ export default function GameScreen({ navigation }) {
                 </TouchableOpacity>
             </View>
 
-            {/* Tur Değişimi Modalı (UI aynen) */}
-            <Modal visible={!state.isActive && round === 1} transparent animationType="fade">
-                <View className="flex-1 bg-indigo-900/95 items-center justify-center px-10">
-                    <View className="bg-white w-full p-10 rounded-[50px] items-center shadow-2xl">
-                        <Text className="text-slate-400 font-bold uppercase mb-2">Tur Tamamlandı</Text>
+            {/* Tur Değişimi Modalı - Intermediate Screen */}
+            <Modal visible={!state.isActive && !state.isGameOver && state.activeTeam === "B"} transparent animationType="slide">
+                <View className="flex-1 bg-indigo-900/98 items-center justify-center px-6">
+                    <View className="bg-white w-full p-8 rounded-[50px] items-center shadow-2xl">
 
-                        <Text className="text-indigo-600 text-4xl font-black mb-2 text-center">
-                            Takım {state.activeTeam}: {state.teamAScore}
+                        <View className="bg-amber-100 p-4 rounded-full mb-4">
+                            <Ionicons name="stats-chart" size={40} color="#f59e0b" />
+                        </View>
+
+                        <Text className="text-slate-400 font-bold uppercase tracking-widest text-xs mb-2">Tur Tamamlandı</Text>
+
+                        <Text className="text-indigo-600 text-3xl font-black mb-1 text-center">
+                            {settings.teamAName}
                         </Text>
+                        <Text className="text-5xl font-black text-slate-800 mb-6">{state.teamAScore}</Text>
 
-                        <Text className="text-slate-600 font-medium mb-8 text-center italic">
-                            Sıra Takım {state.activeTeam === "A" ? "B" : "A"}'de!
+                        <View className="w-full h-[1px] bg-slate-100 mb-6" />
+
+                        <Text className="text-slate-500 font-bold mb-8 text-center text-lg leading-6">
+                            Harika iş çıkardınız!{'\n'}Şimdi sıra <Text className="text-indigo-600 font-black">{settings.teamBName}</Text> ekibinde.
                         </Text>
 
                         <TouchableOpacity
-                            className="bg-indigo-600 w-full py-6 rounded-3xl shadow-xl active:bg-indigo-700"
+                            className="bg-indigo-600 w-full py-6 rounded-3xl shadow-xl active:bg-indigo-700 active:scale-95"
                             onPress={startNextTurn}
                         >
                             <Text className="text-white font-black text-center text-xl uppercase tracking-widest">
-                                HAZIRIZ!
+                                {settings.teamBName} BAŞLASIN!
                             </Text>
                         </TouchableOpacity>
                     </View>

@@ -1,12 +1,8 @@
-import * as Analytics from "expo-firebase-analytics";
-
+// expo-firebase-analytics bazen TypeError fırlatabiliyor, geçici olarak mockluyoruz.
 export const logGameStart = async () => {
-    await Analytics.logEvent("game_start");
+    console.log("Mock Analytics: game_start");
 };
 
 export const logRoundEnd = async (team, score) => {
-    await Analytics.logEvent("round_end", {
-        team,
-        score,
-    });
+    console.log(`Mock Analytics: round_end - Team ${team}, Score ${score}`);
 };

@@ -1,18 +1,34 @@
-import React from 'react';
-import { View, Text, TouchableOpacity, Switch, StatusBar } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context'; // App.js ile uyumlu olan
-import { Ionicons, MaterialIcons } from '@expo/vector-icons'; // MaterialIcons eklendi
+import React, { useEffect } from 'react';
+import { View, Text, TouchableOpacity, Switch, StatusBar, TextInput, KeyboardAvoidingView, Platform, ScrollView } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { Ionicons, MaterialIcons } from '@expo/vector-icons';
 import useGameStore from '../store/useGameStore';
 
 export default function SettingsScreen({ navigation }) {
-    const { settings, setSettings } = useGameStore();
+    const { settings, updateSettings, loadSettings } = useGameStore();
 
-    const handleVibrationToggle = (value) => {
-        setSettings({ vibration: Boolean(value) });
+    useEffect(() => {
+        loadSettings();
+    }, []);
+
+    const handleSave = () => {
+        // useGameStore zaten AsyncStorage işlemini updateSettings içinde yapıyor
+        navigation.goBack();
     };
 
-    const handleDurationChange = (time) => {
-        setSettings({ duration: Number(time) });
+    const updateField = (field, value) => {
+        updateSettings({ [field]: value });
+    };
+
+    const handleNumberInput = (field, text, min, max) => {
+        let val = text.replace(/[^0-9]/g, '');
+        if (val === '') {
+            updateField(field, 0); // Geçici olarak 0, ama kaydederken sanitize edilebilir
+            return;
+        }
+        let num = parseInt(val);
+        if (num > max) num = max;
+        updateField(field, num);
     };
 
     return (
@@ -29,77 +45,116 @@ export default function SettingsScreen({ navigation }) {
                 </Text>
             </View>
 
-            <View className="p-6 space-y-10">
+            <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={{ flex: 1 }}>
+                <ScrollView className="flex-1" contentContainerStyle={{ paddingBottom: 24 }}>
+                    <View className="p-6 space-y-8">
 
-                {/* Tur Süresi Seçimi */}
-                <View className="gap-4">
-                    <Text className="text-slate-400 font-bold mb-4 uppercase tracking-widest text-xs ml-2">
-                        Tur Süresi (Saniye)
-                    </Text>
-                    <View className="flex-row justify-between space-x-2">
-                        {[45, 60, 90].map((time) => (
-                            <TouchableOpacity
-                                key={time}
-                                onPress={() => handleDurationChange(time)}
-                                className={`flex-1 py-5 rounded-3xl items-center ${settings.duration === time ? 'bg-indigo-600 shadow-lg' : 'bg-white border border-slate-200'}`}
-                            >
-                                <Text className={`font-black text-lg ${settings.duration === time ? 'text-white' : 'text-slate-600'}`}>
-                                    {time}
-                                </Text>
-                            </TouchableOpacity>
-                        ))}
-                    </View>
-                </View>
+                        {/* Takım İsimleri */}
+                        <View className="gap-4">
+                            <Text className="text-slate-400 font-bold uppercase tracking-widest text-xs ml-2">
+                                Takım İsimleri
+                            </Text>
 
-                {/* Pas Hakkı Seçimi */}
-                <View className="gap-4">
-                    <Text className="text-slate-400 font-bold mb-4 uppercase tracking-widest text-xs ml-2">
-                        Pas Hakkı
-                    </Text>
-                    <View className="flex-row justify-between space-x-2">
-                        {[3, 5, 10].map((pass) => (
-                            <TouchableOpacity
-                                key={pass}
-                                onPress={() => setSettings({ maxPass: Number(pass) })}
-                                className={`flex-1 py-5 rounded-3xl items-center ${settings.maxPass === pass ? 'bg-amber-500 shadow-lg' : 'bg-white border border-slate-200'}`}
-                            >
-                                <Text className={`font-black text-lg ${settings.maxPass === pass ? 'text-white' : 'text-slate-600'}`}>
-                                    {pass}
-                                </Text>
-                            </TouchableOpacity>
-                        ))}
-                    </View>
-                </View>
+                            <View className="bg-white p-5 rounded-[35px] border border-slate-100 shadow-sm">
+                                <Text className="text-slate-500 font-bold mb-2">Takım A</Text>
+                                <TextInput
+                                    value={settings.teamAName}
+                                    onChangeText={(t) => updateField('teamAName', t)}
+                                    placeholder="Takım A"
+                                    placeholderTextColor="#94a3b8"
+                                    className="bg-slate-50 border border-slate-200 rounded-2xl px-4 py-3 text-slate-800 font-bold"
+                                    maxLength={20}
+                                    autoCapitalize="words"
+                                />
+                            </View>
 
-                {/* Titreşim Kontrolü - HATA DÜZELTİLDİ */}
-                <View className="flex-row justify-between items-center bg-white p-6 rounded-[35px] border border-slate-100 shadow-sm">
-                    <View className="flex-row items-center">
-                        <View className="bg-indigo-100 p-3 rounded-2xl mr-4">
-                            <MaterialIcons name="vibration" size={24} color="#4f46e5" />
+                            <View className="bg-white p-5 rounded-[35px] border border-slate-100 shadow-sm">
+                                <Text className="text-slate-500 font-bold mb-2">Takım B</Text>
+                                <TextInput
+                                    value={settings.teamBName}
+                                    onChangeText={(t) => updateField('teamBName', t)}
+                                    placeholder="Takım B"
+                                    placeholderTextColor="#94a3b8"
+                                    className="bg-slate-50 border border-slate-200 rounded-2xl px-4 py-3 text-slate-800 font-bold"
+                                    maxLength={20}
+                                    autoCapitalize="words"
+                                />
+                            </View>
                         </View>
-                        <Text className="text-slate-700 font-bold text-lg">Titreşim</Text>
+
+                        {/* Tur Süresi Seçimi */}
+                        <View className="gap-4">
+                            <Text className="text-slate-400 font-bold uppercase tracking-widest text-xs ml-2">
+                                Tur Süresi (Saniye)
+                            </Text>
+                            <View className="bg-white p-5 rounded-[35px] border border-slate-100 shadow-sm">
+                                <TextInput
+                                    value={String(settings.duration)}
+                                    onChangeText={(t) => handleNumberInput('duration', t, 15, 300)}
+                                    keyboardType="numeric"
+                                    placeholder="Örn: 60"
+                                    placeholderTextColor="#94a3b8"
+                                    className="bg-slate-50 border border-slate-200 rounded-2xl px-4 py-3 text-slate-800 font-bold"
+                                    maxLength={3}
+                                />
+                                <Text className="text-slate-400 text-xs mt-2">
+                                    Önerilen: 60-90 saniye (Min 15, Max 300)
+                                </Text>
+                            </View>
+                        </View>
+
+                        {/* Pas Hakkı Seçimi */}
+                        <View className="gap-4">
+                            <Text className="text-slate-400 font-bold uppercase tracking-widest text-xs ml-2">
+                                Pas Hakkı
+                            </Text>
+                            <View className="bg-white p-5 rounded-[35px] border border-slate-100 shadow-sm">
+                                <TextInput
+                                    value={String(settings.maxPass)}
+                                    onChangeText={(t) => handleNumberInput('maxPass', t, 0, 30)}
+                                    keyboardType="numeric"
+                                    placeholder="Örn: 3"
+                                    placeholderTextColor="#94a3b8"
+                                    className="bg-slate-50 border border-slate-200 rounded-2xl px-4 py-3 text-slate-800 font-bold"
+                                    maxLength={2}
+                                />
+                                <Text className="text-slate-400 text-xs mt-2">
+                                    Önerilen: 3-5 (Max 30)
+                                </Text>
+                            </View>
+                        </View>
+
+                        {/* Titreşim Kontrolü */}
+                        <View className="flex-row justify-between items-center bg-white p-6 rounded-[35px] border border-slate-100 shadow-sm">
+                            <View className="flex-row items-center">
+                                <View className="bg-indigo-100 p-3 rounded-2xl mr-4">
+                                    <MaterialIcons name="vibration" size={24} color="#4f46e5" />
+                                </View>
+                                <Text className="text-slate-700 font-bold text-lg">Titreşim</Text>
+                            </View>
+                            <Switch
+                                value={settings.vibration}
+                                onValueChange={(v) => updateField('vibration', v)}
+                                trackColor={{ false: "#cbd5e1", true: "#818cf8" }}
+                                thumbColor={settings.vibration ? "#4f46e5" : "#f4f3f4"}
+                            />
+                        </View>
+
                     </View>
-                    <Switch
-                        value={Boolean(settings.vibration)}
-                        onValueChange={handleVibrationToggle}
-                        trackColor={{ false: "#cbd5e1", true: "#818cf8" }}
-                        thumbColor={settings.vibration ? "#4f46e5" : "#f4f3f4"}
-                    />
+                </ScrollView>
+
+                {/* Kaydet Butonu */}
+                <View className="p-6 bg-slate-50">
+                    <TouchableOpacity
+                        className="bg-indigo-600 py-6 rounded-3xl shadow-xl active:scale-95"
+                        onPress={handleSave}
+                    >
+                        <Text className="text-white text-center font-black text-xl uppercase tracking-widest">
+                            Değişiklikleri Uygula
+                        </Text>
+                    </TouchableOpacity>
                 </View>
-
-            </View>
-
-            {/* Kaydet Butonu */}
-            <View className="mt-auto p-6">
-                <TouchableOpacity
-                    className="bg-indigo-600 py-6 rounded-3xl shadow-xl active:scale-95"
-                    onPress={() => navigation.goBack()}
-                >
-                    <Text className="text-white text-center font-black text-xl uppercase tracking-widest">
-                        Değişiklikleri Uygula
-                    </Text>
-                </TouchableOpacity>
-            </View>
+            </KeyboardAvoidingView>
         </SafeAreaView>
     );
 }
