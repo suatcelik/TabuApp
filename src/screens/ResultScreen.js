@@ -1,37 +1,46 @@
-import React, { useEffect, useState } from 'react';
-import { View, Text, TouchableOpacity, StatusBar } from 'react-native';
-import ConfettiCannon from 'react-native-confetti-cannon';
-import { Audio } from 'expo-av';
-import useGameStore from '../store/useGameStore';
-import { Ionicons } from '@expo/vector-icons';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import React, { useEffect, useState } from "react";
+import { View, Text, TouchableOpacity, StatusBar } from "react-native";
+import ConfettiCannon from "react-native-confetti-cannon";
+import useGameStore from "../store/useGameStore";
+import { Ionicons } from "@expo/vector-icons";
+import { SafeAreaView } from "react-native-safe-area-context";
+
+import { useAudioPlayer } from "expo-audio";
 
 export default function ResultScreen({ navigation }) {
-    // Zustand store'dan skorları, ayarları ve oyunu sıfırlama fonksiyonunu alıyoruz
     const { totalScores, settings, resetGame } = useGameStore();
     const [showConfetti, setShowConfetti] = useState(false);
 
-    // Kazananı belirle
-    const winnerKey = totalScores.A > totalScores.B ? 'A' : totalScores.B > totalScores.A ? 'B' : 'Draw';
-    const winnerName = winnerKey === 'A' ? settings.teamAName : winnerKey === 'B' ? settings.teamBName : 'Berabere';
+    // ✅ expo-audio: kazanan sesi player (bir kez yüklenir)
+    const winPlayer = useAudioPlayer(require("../../assets/success.mp3"));
 
-    async function playWinSound() {
+    // Kazananı belirle
+    const winnerKey =
+        totalScores.A > totalScores.B
+            ? "A"
+            : totalScores.B > totalScores.A
+                ? "B"
+                : "Draw";
+
+    const winnerName =
+        winnerKey === "A"
+            ? settings.teamAName
+            : winnerKey === "B"
+                ? settings.teamBName
+                : "Berabere";
+
+    const playWinSound = () => {
         try {
-            const { sound } = await Audio.Sound.createAsync(
-                require('../../assets/success.mp3')
-            );
-            await sound.playAsync();
-            sound.setOnPlaybackStatusUpdate((status) => {
-                if (status.didJustFinish) sound.unloadAsync();
-            });
+            winPlayer.seekTo?.(0);
+            winPlayer.play();
         } catch (error) {
             console.log("Win sound error:", error);
         }
-    }
+    };
 
     useEffect(() => {
-        // Eğer bir kazanan varsa konfeti patlat ve ses çal
-        if (winnerKey !== 'Draw') {
+        // Eğer bir kazanan varsa konfeti + ses
+        if (winnerKey !== "Draw") {
             const timer = setTimeout(() => {
                 setShowConfetti(true);
                 playWinSound();
@@ -41,8 +50,8 @@ export default function ResultScreen({ navigation }) {
     }, [winnerKey]);
 
     const handleNewGame = () => {
-        resetGame(); // Skorları sıfırla
-        navigation.navigate('Home'); // Ana menüye dön
+        resetGame();
+        navigation.navigate("Home");
     };
 
     return (
@@ -60,7 +69,6 @@ export default function ResultScreen({ navigation }) {
             )}
 
             <View className="flex-1 items-center justify-center px-6">
-
                 {/* Taç İkonu ve Başlık */}
                 <View className="bg-amber-400 p-6 rounded-full mb-6 shadow-2xl">
                     <Ionicons name="trophy" size={60} color="white" />
@@ -71,19 +79,24 @@ export default function ResultScreen({ navigation }) {
                 </Text>
 
                 <Text className="text-indigo-200 text-lg font-bold mb-12 uppercase tracking-widest text-center px-4">
-                    {winnerKey === 'Draw' ? 'Dostluk Kazandı!' : `${winnerName} KAZANDI!`}
+                    {winnerKey === "Draw" ? "Dostluk Kazandı!" : `${winnerName} KAZANDI!`}
                 </Text>
 
                 {/* Skor Tablosu */}
                 <View className="w-full bg-white/10 p-8 rounded-[40px] border border-white/20 shadow-xl mb-12">
                     <View className="flex-row justify-around items-center">
-
                         {/* Takım A */}
                         <View className="items-center flex-1">
-                            <Text className="text-indigo-300 font-bold mb-2 uppercase text-xs text-center" numberOfLines={1}>
+                            <Text
+                                className="text-indigo-300 font-bold mb-2 uppercase text-xs text-center"
+                                numberOfLines={1}
+                            >
                                 {settings.teamAName}
                             </Text>
-                            <Text className={`text-6xl font-black ${winnerKey === 'A' ? 'text-amber-400' : 'text-white'}`}>
+                            <Text
+                                className={`text-6xl font-black ${winnerKey === "A" ? "text-amber-400" : "text-white"
+                                    }`}
+                            >
                                 {totalScores.A}
                             </Text>
                         </View>
@@ -93,14 +106,19 @@ export default function ResultScreen({ navigation }) {
 
                         {/* Takım B */}
                         <View className="items-center flex-1">
-                            <Text className="text-indigo-300 font-bold mb-2 uppercase text-xs text-center" numberOfLines={1}>
+                            <Text
+                                className="text-indigo-300 font-bold mb-2 uppercase text-xs text-center"
+                                numberOfLines={1}
+                            >
                                 {settings.teamBName}
                             </Text>
-                            <Text className={`text-6xl font-black ${winnerKey === 'B' ? 'text-amber-400' : 'text-white'}`}>
+                            <Text
+                                className={`text-6xl font-black ${winnerKey === "B" ? "text-amber-400" : "text-white"
+                                    }`}
+                            >
                                 {totalScores.B}
                             </Text>
                         </View>
-
                     </View>
                 </View>
 
@@ -117,14 +135,13 @@ export default function ResultScreen({ navigation }) {
 
                     <TouchableOpacity
                         className="w-full py-4 rounded-3xl border border-white/30"
-                        onPress={() => navigation.navigate('Home')}
+                        onPress={() => navigation.navigate("Home")}
                     >
                         <Text className="text-white text-center text-lg font-bold uppercase tracking-widest">
                             ANA MENÜYE DÖN
                         </Text>
                     </TouchableOpacity>
                 </View>
-
             </View>
         </SafeAreaView>
     );

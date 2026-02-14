@@ -8,27 +8,46 @@ import {
     StatusBar,
 } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { Audio } from "expo-av";
 import { Ionicons } from "@expo/vector-icons";
-import { SafeAreaView, } from 'react-native-safe-area-context';
+import { SafeAreaView } from "react-native-safe-area-context";
+
+import { useAudioPlayer } from "expo-audio";
+
 import { getWordBatch } from "../services/wordService";
 import { gameReducer, initialState } from "../reducers/gameReducer";
 import { saveScore } from "../services/leaderboardService";
-import { logGameStart, logRoundEnd } from "../services/analyticsService";
+import { logRoundEnd } from "../services/analyticsService";
 import useGameStore from "../store/useGameStore";
 
 export default function GameScreen({ navigation }) {
     const [state, dispatch] = useReducer(gameReducer, initialState);
     const { settings, loadSettings, setFinalScores } = useGameStore();
 
-    // UI tarafında timer formatı için local state yerine reducer’daki timeLeft kullanacağız.
+    // ✅ expo-audio: sesleri bir kez yükler
+    const successPlayer = useAudioPlayer(require("../../assets/success.mp3"));
+    const errorPlayer = useAudioPlayer(require("../../assets/error.mp3"));
+
+    const playSound = (type) => {
+        try {
+            if (type === "SUCCESS") {
+                successPlayer.seekTo?.(0);
+                successPlayer.play();
+            } else {
+                errorPlayer.seekTo?.(0);
+                errorPlayer.play();
+            }
+        } catch (e) {
+            console.log("Ses hatası:", e);
+        }
+    };
+
+    // UI tarafında modal/round kontrolü
     const [round, setRound] = useState(1);
 
     // 1) Oyun hazırlığı: ayarları yükle + kelimeleri yükle
     useEffect(() => {
         const initGame = async () => {
             try {
-                // Ayarları yükle (persistence için)
                 await loadSettings();
 
                 const cached = await AsyncStorage.getItem("WORDS");
@@ -46,13 +65,12 @@ export default function GameScreen({ navigation }) {
                     const words = await getWordBatch();
                     const wordList = Array.isArray(words) ? words : [];
                     const shuffled = wordList.sort(() => Math.random() - 0.5);
+
                     if (shuffled.length > 0) {
                         await AsyncStorage.setItem("WORDS", JSON.stringify(shuffled));
                     }
                     dispatch({ type: "SET_WORDS", payload: shuffled });
                 }
-
-                await Audio.setAudioModeAsync({ playsInSilentModeIOS: true });
             } catch (e) {
                 console.log("CRITICAL ERROR in initGame:", e);
             }
@@ -63,30 +81,12 @@ export default function GameScreen({ navigation }) {
 
     // Ayarlar yüklendiğinde reducer'ı güncelle
     useEffect(() => {
-        if (settings) {
-            dispatch({
-                type: "INIT_SETTINGS",
-                payload: { duration: settings.duration, maxPass: settings.maxPass }
-            });
-        }
-    }, [settings.duration, settings.maxPass]);
-
-    // 2) Ses çalma
-    async function playSound(type) {
-        try {
-            const { sound } = await Audio.Sound.createAsync(
-                type === "SUCCESS"
-                    ? require("../../assets/success.mp3")
-                    : require("../../assets/error.mp3")
-            );
-            await sound.playAsync();
-            sound.setOnPlaybackStatusUpdate((status) => {
-                if (status.didJustFinish) sound.unloadAsync();
-            });
-        } catch (error) {
-            console.log("Ses hatası:", error);
-        }
-    }
+        if (!settings) return;
+        dispatch({
+            type: "INIT_SETTINGS",
+            payload: { duration: settings.duration, maxPass: settings.maxPass },
+        });
+    }, [settings?.duration, settings?.maxPass]);
 
     // 3) Timer
     useEffect(() => {
@@ -102,18 +102,26 @@ export default function GameScreen({ navigation }) {
     // 4) Tur bitince
     useEffect(() => {
         if (state.timeLeft === 0 && state.isActive === false && !state.isGameOver) {
-            const teamScore = state.activeTeam === "A" ? state.teamAScore : state.teamBScore;
+            const teamScore =
+                state.activeTeam === "A" ? state.teamAScore : state.teamBScore;
+
             logRoundEnd(state.activeTeam, teamScore);
 
-            // A bittiyse B’ye geçer, B bittiyse oyun biter
             dispatch({
                 type: "NEXT_ROUND",
-                payload: { duration: settings.duration, maxPass: settings.maxPass }
+                payload: { duration: settings?.duration, maxPass: settings?.maxPass },
             });
-
-            setRound((r) => (r === 1 ? 2 : r));
         }
-    }, [state.timeLeft, state.isActive, state.isGameOver, state.activeTeam, settings.duration, settings.maxPass]);
+    }, [
+        state.timeLeft,
+        state.isActive,
+        state.isGameOver,
+        state.activeTeam,
+        state.teamAScore,
+        state.teamBScore,
+        settings?.duration,
+        settings?.maxPass,
+    ]);
 
     // 5) Oyun tamamen bitince
     useEffect(() => {
@@ -127,6 +135,7 @@ export default function GameScreen({ navigation }) {
             const timerId = setTimeout(() => {
                 navigation?.replace?.("Result");
             }, 1000);
+
             return () => clearTimeout(timerId);
         }
     }, [state.isGameOver, state.teamAScore, state.teamBScore, navigation, setFinalScores]);
@@ -163,10 +172,11 @@ export default function GameScreen({ navigation }) {
     }
 
     const currentWord = state.words?.[state.currentIndex];
-    const activeTeamName = state.activeTeam === "A" ? settings.teamAName : settings.teamBName;
+    const activeTeamName =
+        state.activeTeam === "A" ? settings?.teamAName : settings?.teamBName;
 
     // Timer formatı
-    const timer = state.timeLeft;
+    const timer = state.timeLeft || 0;
     const mm = Math.floor(timer / 60);
     const ss = timer % 60 < 10 ? `0${timer % 60}` : timer % 60;
 
@@ -177,7 +187,9 @@ export default function GameScreen({ navigation }) {
             {/* Üst Bilgi Çubuğu */}
             <View className="flex-row justify-between items-center px-6 py-4 bg-white shadow-sm">
                 <View className="items-center flex-1">
-                    <Text className="text-slate-400 text-[10px] font-bold uppercase">{activeTeamName}</Text>
+                    <Text className="text-slate-400 text-[10px] font-bold uppercase">
+                        {activeTeamName}
+                    </Text>
                     <Text className="text-indigo-600 text-3xl font-black">
                         {state.activeTeam === "A" ? state.teamAScore : state.teamBScore}
                     </Text>
@@ -191,9 +203,7 @@ export default function GameScreen({ navigation }) {
 
                 <View className="items-center flex-1">
                     <Text className="text-slate-400 text-[10px] font-bold uppercase">Pas</Text>
-                    <Text className="text-amber-500 text-3xl font-black">
-                        {state.passCount}
-                    </Text>
+                    <Text className="text-amber-500 text-3xl font-black">{state.passCount}</Text>
                 </View>
             </View>
 
@@ -207,8 +217,8 @@ export default function GameScreen({ navigation }) {
                     </View>
 
                     <View className="py-10 items-center">
-                        {currentWord?.forbiddenWords?.map((word, index) => (
-                            <View key={index} className="py-2 w-full items-center">
+                        {(currentWord?.forbiddenWords ?? []).map((word, index) => (
+                            <View key={`${word}-${index}`} className="py-2 w-full items-center">
                                 <Text className="text-slate-600 text-2xl font-bold uppercase tracking-tight">
                                     {word}
                                 </Text>
@@ -251,26 +261,32 @@ export default function GameScreen({ navigation }) {
                 </TouchableOpacity>
             </View>
 
-            {/* Tur Değişimi Modalı - Intermediate Screen */}
-            <Modal visible={!state.isActive && !state.isGameOver && (state.activeTeam === "B" && round === 1)} transparent animationType="slide">
+            {/* Tur Değişimi Modalı */}
+            <Modal
+                visible={!state.isActive && !state.isGameOver && state.activeTeam === "B" && round === 1}
+                transparent
+                animationType="slide"
+            >
                 <View className="flex-1 bg-indigo-900/98 items-center justify-center px-6">
                     <View className="bg-white w-full p-8 rounded-[50px] items-center shadow-2xl">
-
                         <View className="bg-amber-100 p-4 rounded-full mb-4">
                             <Ionicons name="stats-chart" size={40} color="#f59e0b" />
                         </View>
 
-                        <Text className="text-slate-400 font-bold uppercase tracking-widest text-xs mb-2">Tur Sonucu</Text>
+                        <Text className="text-slate-400 font-bold uppercase tracking-widest text-xs mb-2">
+                            Tur Sonucu
+                        </Text>
 
                         <Text className="text-indigo-600 text-3xl font-black mb-1 text-center">
-                            {settings.teamAName}
+                            {settings?.teamAName}
                         </Text>
                         <Text className="text-5xl font-black text-slate-800 mb-6">{state.teamAScore}</Text>
 
                         <View className="w-full h-[1px] bg-slate-100 mb-6" />
 
                         <Text className="text-slate-500 font-bold mb-8 text-center text-lg leading-6">
-                            Harika iş çıkardınız!{'\n'}Şimdi sıra <Text className="text-indigo-600 font-black">{settings.teamBName}</Text> ekibinde.
+                            Harika iş çıkardınız!{"\n"}Şimdi sıra{" "}
+                            <Text className="text-indigo-600 font-black">{settings?.teamBName}</Text> ekibinde.
                         </Text>
 
                         <TouchableOpacity
@@ -278,7 +294,7 @@ export default function GameScreen({ navigation }) {
                             onPress={startNextTurn}
                         >
                             <Text className="text-white font-black text-center text-xl uppercase tracking-widest">
-                                {settings.teamBName} BAŞLASIN!
+                                {settings?.teamBName} BAŞLASIN!
                             </Text>
                         </TouchableOpacity>
                     </View>
