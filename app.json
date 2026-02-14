@@ -30,6 +30,9 @@
         "projectId": "2f69787d-de33-4273-8944-8ddccfceb25c"
       }
     },
-    "owner": "arcodiba"
+    "owner": "arcodiba",
+    "plugins": [
+      "expo-audio"
+    ]
   }
 }

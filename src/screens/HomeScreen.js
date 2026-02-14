@@ -58,7 +58,7 @@ export default function HomeScreen({ navigation }) {
 
                 {/* Küçük Bilgi Notu */}
                 <Text className="text-center text-slate-300 text-xs mt-4 font-bold uppercase tracking-tighter">
-                    v1.0.0 - Fun Edition
+                    v1.0.0 - Tabu App
                 </Text>
             </View>
         </SafeAreaView>

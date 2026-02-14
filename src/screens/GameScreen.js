@@ -3,7 +3,6 @@ import {
     View,
     Text,
     TouchableOpacity,
-    SafeAreaView,
     ActivityIndicator,
     Modal,
     StatusBar,
@@ -11,7 +10,7 @@ import {
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Audio } from "expo-av";
 import { Ionicons } from "@expo/vector-icons";
-
+import { SafeAreaView, } from 'react-native-safe-area-context';
 import { getWordBatch } from "../services/wordService";
 import { gameReducer, initialState } from "../reducers/gameReducer";
 import { saveScore } from "../services/leaderboardService";
@@ -253,7 +252,7 @@ export default function GameScreen({ navigation }) {
             </View>
 
             {/* Tur Değişimi Modalı - Intermediate Screen */}
-            <Modal visible={!state.isActive && !state.isGameOver && state.activeTeam === "B"} transparent animationType="slide">
+            <Modal visible={!state.isActive && !state.isGameOver && (state.activeTeam === "B" && round === 1)} transparent animationType="slide">
                 <View className="flex-1 bg-indigo-900/98 items-center justify-center px-6">
                     <View className="bg-white w-full p-8 rounded-[50px] items-center shadow-2xl">
 
@@ -261,7 +260,7 @@ export default function GameScreen({ navigation }) {
                             <Ionicons name="stats-chart" size={40} color="#f59e0b" />
                         </View>
 
-                        <Text className="text-slate-400 font-bold uppercase tracking-widest text-xs mb-2">Tur Tamamlandı</Text>
+                        <Text className="text-slate-400 font-bold uppercase tracking-widest text-xs mb-2">Tur Sonucu</Text>
 
                         <Text className="text-indigo-600 text-3xl font-black mb-1 text-center">
                             {settings.teamAName}
