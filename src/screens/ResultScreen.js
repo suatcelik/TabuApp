@@ -8,25 +8,28 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { useAudioPlayer } from "expo-audio";
 
 export default function ResultScreen({ navigation }) {
-    const { totalScores, settings, resetGame } = useGameStore();
+    // ✅ Yeni store alanı: finalScores
+    const finalScores = useGameStore((s) => s.finalScores);
+    const settings = useGameStore((s) => s.settings);
+    const resetGame = useGameStore((s) => s.resetGame);
+
     const [showConfetti, setShowConfetti] = useState(false);
 
-    // ✅ expo-audio: kazanan sesi player (bir kez yüklenir)
-    const winPlayer = useAudioPlayer(require("../../assets/success.mp3"));
+    // ✅ Kazanan sesi (winner.mp3 varsa onu tercih et; yoksa success.mp3 kullan)
+    const winPlayer = useAudioPlayer(require("../../assets/winner.mp3"));
+
+    // Skorları güvenli oku
+    const scoreA = Number(finalScores?.A ?? 0);
+    const scoreB = Number(finalScores?.B ?? 0);
 
     // Kazananı belirle
-    const winnerKey =
-        totalScores.A > totalScores.B
-            ? "A"
-            : totalScores.B > totalScores.A
-                ? "B"
-                : "Draw";
+    const winnerKey = scoreA > scoreB ? "A" : scoreB > scoreA ? "B" : "Draw";
 
     const winnerName =
         winnerKey === "A"
-            ? settings.teamAName
+            ? settings?.teamAName
             : winnerKey === "B"
-                ? settings.teamBName
+                ? settings?.teamBName
                 : "Berabere";
 
     const playWinSound = () => {
@@ -39,7 +42,6 @@ export default function ResultScreen({ navigation }) {
     };
 
     useEffect(() => {
-        // Eğer bir kazanan varsa konfeti + ses
         if (winnerKey !== "Draw") {
             const timer = setTimeout(() => {
                 setShowConfetti(true);
@@ -50,7 +52,7 @@ export default function ResultScreen({ navigation }) {
     }, [winnerKey]);
 
     const handleNewGame = () => {
-        resetGame();
+        resetGame(); // sadece finalScores sıfırlar
         navigation.navigate("Home");
     };
 
@@ -91,13 +93,13 @@ export default function ResultScreen({ navigation }) {
                                 className="text-indigo-300 font-bold mb-2 uppercase text-xs text-center"
                                 numberOfLines={1}
                             >
-                                {settings.teamAName}
+                                {settings?.teamAName}
                             </Text>
                             <Text
                                 className={`text-6xl font-black ${winnerKey === "A" ? "text-amber-400" : "text-white"
                                     }`}
                             >
-                                {totalScores.A}
+                                {scoreA}
                             </Text>
                         </View>
 
@@ -110,13 +112,13 @@ export default function ResultScreen({ navigation }) {
                                 className="text-indigo-300 font-bold mb-2 uppercase text-xs text-center"
                                 numberOfLines={1}
                             >
-                                {settings.teamBName}
+                                {settings?.teamBName}
                             </Text>
                             <Text
                                 className={`text-6xl font-black ${winnerKey === "B" ? "text-amber-400" : "text-white"
                                     }`}
                             >
-                                {totalScores.B}
+                                {scoreB}
                             </Text>
                         </View>
                     </View>

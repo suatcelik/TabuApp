@@ -11,51 +11,58 @@ export const initialState = {
     isGameOver: false,
 };
 
+// yardımcı: index güvenliği
+const nextIndex = (state) => {
+    const next = state.currentIndex + 1;
+    if (!Array.isArray(state.words) || state.words.length === 0) return next;
+    return Math.min(next, state.words.length - 1);
+};
+
 export function gameReducer(state = initialState, action) {
     if (!state) return initialState;
+
     switch (action.type) {
-        case "SET_WORDS":
-            return {
-                ...state,
-                words: action.payload,
-                loading: false,
-                isActive: true,
-            };
+        case "SET_WORDS": {
+            const list = Array.isArray(action.payload) ? action.payload : [];
+            const hasWords = list.length > 0;
 
-        case "SUCCESS":
             return {
                 ...state,
-                currentIndex: state.currentIndex + 1,
-                teamAScore:
-                    state.activeTeam === "A"
-                        ? state.teamAScore + 1
-                        : state.teamAScore,
-                teamBScore:
-                    state.activeTeam === "B"
-                        ? state.teamBScore + 1
-                        : state.teamBScore,
+                words: list,
+                currentIndex: 0,
+                loading: !hasWords,
+                // ✅ kelime geldiyse A turu otomatik başlar (süre akar, butonlar aktif olur)
+                isActive: hasWords,
+                // activeTeam zaten "A" başlıyor, dokunmuyoruz
             };
+        }
 
-        case "TABOO":
+        case "SUCCESS": {
+            const isTeamA = state.activeTeam === "A";
             return {
                 ...state,
-                currentIndex: state.currentIndex + 1,
-                teamAScore:
-                    state.activeTeam === "A"
-                        ? state.teamAScore - 1
-                        : state.teamAScore,
-                teamBScore:
-                    state.activeTeam === "B"
-                        ? state.teamBScore - 1
-                        : state.teamBScore,
+                currentIndex: nextIndex(state),
+                teamAScore: isTeamA ? state.teamAScore + 1 : state.teamAScore,
+                teamBScore: !isTeamA ? state.teamBScore + 1 : state.teamBScore,
             };
+        }
+
+        case "TABOO": {
+            const isTeamA = state.activeTeam === "A";
+            return {
+                ...state,
+                currentIndex: nextIndex(state),
+                teamAScore: isTeamA ? state.teamAScore - 1 : state.teamAScore,
+                teamBScore: !isTeamA ? state.teamBScore - 1 : state.teamBScore,
+            };
+        }
 
         case "PASS":
             if (state.passCount <= 0) return state;
             return {
                 ...state,
                 passCount: state.passCount - 1,
-                currentIndex: state.currentIndex + 1,
+                currentIndex: nextIndex(state),
             };
 
         case "TICK":
@@ -65,21 +72,24 @@ export function gameReducer(state = initialState, action) {
             return { ...state, timeLeft: state.timeLeft - 1 };
 
         case "NEXT_ROUND":
+            // A turu bitti -> B turuna hazırlan (modal + START_TURN ile başlayacak)
             if (state.activeTeam === "A") {
                 return {
                     ...state,
                     activeTeam: "B",
-                    timeLeft: action.payload?.duration || 60,
-                    passCount: action.payload?.maxPass !== undefined ? action.payload.maxPass : 3,
-                    isActive: false, // Don't start automatically
-                };
-            } else {
-                return {
-                    ...state,
-                    isActive: false,
-                    isGameOver: true,
+                    timeLeft: action.payload?.duration ?? 60,
+                    passCount:
+                        action.payload?.maxPass !== undefined ? action.payload.maxPass : 3,
+                    isActive: false, // B otomatik başlamasın
                 };
             }
+
+            // B turu bitti -> oyun bitti
+            return {
+                ...state,
+                isActive: false,
+                isGameOver: true,
+            };
 
         case "START_TURN":
             return {
@@ -90,8 +100,9 @@ export function gameReducer(state = initialState, action) {
         case "INIT_SETTINGS":
             return {
                 ...state,
-                timeLeft: action.payload.duration || 60,
-                passCount: action.payload.maxPass !== undefined ? action.payload.maxPass : 3,
+                timeLeft: action.payload?.duration ?? 60,
+                passCount:
+                    action.payload?.maxPass !== undefined ? action.payload.maxPass : 3,
             };
 
         case "RESET":

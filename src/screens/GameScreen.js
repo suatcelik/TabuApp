@@ -42,7 +42,9 @@ const ensureDifferentFirstWord = async (words) => {
         if (!lastFirst || words.length <= 1) return words;
 
         if (words[0]?.targetWord === lastFirst) {
-            const idx = words.findIndex((w) => w?.targetWord && w.targetWord !== lastFirst);
+            const idx = words.findIndex(
+                (w) => w?.targetWord && w.targetWord !== lastFirst
+            );
             if (idx > 0) {
                 const newWords = [...words];
                 const tmp = newWords[0];
@@ -59,7 +61,11 @@ const ensureDifferentFirstWord = async (words) => {
 
 export default function GameScreen({ navigation }) {
     const [state, dispatch] = useReducer(gameReducer, initialState);
-    const { settings, loadSettings, setFinalScores } = useGameStore();
+
+    // ✅ Selector ile al (re-render azaltır)
+    const settings = useGameStore((s) => s.settings);
+    const loadSettings = useGameStore((s) => s.loadSettings);
+    const setFinalScores = useGameStore((s) => s.setFinalScores);
 
     // ✅ expo-audio: sesleri bir kez yükler
     const successPlayer = useAudioPlayer(require("../../assets/success.mp3"));
@@ -82,7 +88,7 @@ export default function GameScreen({ navigation }) {
     // UI tarafında modal/round kontrolü
     const [round, setRound] = useState(1);
 
-    // ✅ Interval güvenliği (UI değiştirmeden)
+    // ✅ Interval güvenliği
     const intervalRef = useRef(null);
 
     // 1) Oyun hazırlığı: ayarları yükle + kelimeleri yükle
@@ -100,14 +106,18 @@ export default function GameScreen({ navigation }) {
                     const isValidVersion = parsed?.version === CACHE_VERSION;
                     const fetchedAt = parsed?.fetchedAt || 0;
                     const isNotExpired = Date.now() - fetchedAt < CACHE_TTL_MS;
-                    const hasWords = Array.isArray(parsed?.words) && parsed.words.length > 0;
+                    const hasWords =
+                        Array.isArray(parsed?.words) && parsed.words.length > 0;
 
                     if (isValidVersion && isNotExpired && hasWords) {
                         let shuffled = shuffleWords(parsed.words);
                         shuffled = await ensureDifferentFirstWord(shuffled);
 
                         dispatch({ type: "SET_WORDS", payload: shuffled });
-                        await AsyncStorage.setItem(LAST_FIRST_WORD_KEY, shuffled[0]?.targetWord || "");
+                        await AsyncStorage.setItem(
+                            LAST_FIRST_WORD_KEY,
+                            shuffled[0]?.targetWord || ""
+                        );
                         return;
                     }
                 }
@@ -123,14 +133,16 @@ export default function GameScreen({ navigation }) {
                             words: oldParsed,
                         };
                         await AsyncStorage.setItem(WORDS_CACHE_KEY, JSON.stringify(payload));
-                        // artık eskisini tutmaya gerek yok ama bozmayalım diye kaldırmıyorum.
-                        // await AsyncStorage.removeItem("WORDS");
+                        // await AsyncStorage.removeItem("WORDS"); // istersen açabilirsin
 
                         let shuffled = shuffleWords(oldParsed);
                         shuffled = await ensureDifferentFirstWord(shuffled);
 
                         dispatch({ type: "SET_WORDS", payload: shuffled });
-                        await AsyncStorage.setItem(LAST_FIRST_WORD_KEY, shuffled[0]?.targetWord || "");
+                        await AsyncStorage.setItem(
+                            LAST_FIRST_WORD_KEY,
+                            shuffled[0]?.targetWord || ""
+                        );
                         return;
                     } else {
                         await AsyncStorage.removeItem("WORDS");
@@ -153,7 +165,10 @@ export default function GameScreen({ navigation }) {
                         words: wordList, // kaynak listeyi kaydet (sonra her oyunda shuffle)
                     };
                     await AsyncStorage.setItem(WORDS_CACHE_KEY, JSON.stringify(payload));
-                    await AsyncStorage.setItem(LAST_FIRST_WORD_KEY, shuffled[0]?.targetWord || "");
+                    await AsyncStorage.setItem(
+                        LAST_FIRST_WORD_KEY,
+                        shuffled[0]?.targetWord || ""
+                    );
                 }
 
                 dispatch({ type: "SET_WORDS", payload: shuffled });
@@ -182,7 +197,7 @@ export default function GameScreen({ navigation }) {
         return () => {
             if (intervalRef.current) clearInterval(intervalRef.current);
         };
-    }, []);
+    }, [loadSettings]);
 
     // Ayarlar yüklendiğinde reducer'ı güncelle
     useEffect(() => {
@@ -239,20 +254,43 @@ export default function GameScreen({ navigation }) {
 
     // 5) Oyun tamamen bitince
     useEffect(() => {
-        if (state.isGameOver) {
-            const winnerScore =
-                state.teamAScore > state.teamBScore ? state.teamAScore : state.teamBScore;
+        if (!state.isGameOver) return;
 
-            saveScore("Player", winnerScore);
-            setFinalScores({ A: state.teamAScore, B: state.teamBScore });
+        const finalize = async () => {
+            try {
+                const winnerScore =
+                    state.teamAScore > state.teamBScore
+                        ? state.teamAScore
+                        : state.teamBScore;
 
-            const timerId = setTimeout(() => {
+                // Skor kaydı (hata olsa da akış devam etsin)
+                try {
+                    await saveScore("Player", winnerScore);
+                } catch (e) {
+                    console.log("saveScore error:", e);
+                }
+
+                setFinalScores({ A: state.teamAScore, B: state.teamBScore });
+
+                const timerId = setTimeout(() => {
+                    navigation?.replace?.("Result");
+                }, 1000);
+
+                return () => clearTimeout(timerId);
+            } catch (e) {
+                console.log("Finalize error:", e);
                 navigation?.replace?.("Result");
-            }, 1000);
+            }
+        };
 
-            return () => clearTimeout(timerId);
-        }
-    }, [state.isGameOver, state.teamAScore, state.teamBScore, navigation, setFinalScores]);
+        finalize();
+    }, [
+        state.isGameOver,
+        state.teamAScore,
+        state.teamBScore,
+        navigation,
+        setFinalScores,
+    ]);
 
     // 6) Aksiyonlar
     const onCorrect = () => {
@@ -316,8 +354,12 @@ export default function GameScreen({ navigation }) {
                 </View>
 
                 <View className="items-center flex-1">
-                    <Text className="text-slate-400 text-[10px] font-bold uppercase">Pas</Text>
-                    <Text className="text-amber-500 text-3xl font-black">{state.passCount}</Text>
+                    <Text className="text-slate-400 text-[10px] font-bold uppercase">
+                        Pas
+                    </Text>
+                    <Text className="text-amber-500 text-3xl font-black">
+                        {state.passCount}
+                    </Text>
                 </View>
             </View>
 
@@ -377,7 +419,12 @@ export default function GameScreen({ navigation }) {
 
             {/* Tur Değişimi Modalı */}
             <Modal
-                visible={!state.isActive && !state.isGameOver && state.activeTeam === "B" && round === 1}
+                visible={
+                    !state.isActive &&
+                    !state.isGameOver &&
+                    state.activeTeam === "B" &&
+                    round === 1
+                }
                 transparent
                 animationType="slide"
             >
@@ -394,13 +441,18 @@ export default function GameScreen({ navigation }) {
                         <Text className="text-indigo-600 text-3xl font-black mb-1 text-center">
                             {settings?.teamAName}
                         </Text>
-                        <Text className="text-5xl font-black text-slate-800 mb-6">{state.teamAScore}</Text>
+                        <Text className="text-5xl font-black text-slate-800 mb-6">
+                            {state.teamAScore}
+                        </Text>
 
                         <View className="w-full h-[1px] bg-slate-100 mb-6" />
 
                         <Text className="text-slate-500 font-bold mb-8 text-center text-lg leading-6">
                             Harika iş çıkardınız!{"\n"}Şimdi sıra{" "}
-                            <Text className="text-indigo-600 font-black">{settings?.teamBName}</Text> ekibinde.
+                            <Text className="text-indigo-600 font-black">
+                                {settings?.teamBName}
+                            </Text>{" "}
+                            ekibinde.
                         </Text>
 
                         <TouchableOpacity
