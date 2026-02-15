@@ -1,44 +1,79 @@
-# Learn more https://docs.github.com/en/get-started/getting-started-with-git/ignoring-files
-
-# dependencies
+# ------------------------------
+# Dependencies
+# ------------------------------
 node_modules/
 
+# ------------------------------
 # Expo
+# ------------------------------
 .expo/
+.expo-shared/
 dist/
 web-build/
 expo-env.d.ts
 
-# Native
-.kotlin/
-*.orig.*
+# ------------------------------
+# Native generated folders
+# ------------------------------
+/ios
+/android
+
+# ------------------------------
+# Build outputs
+# ------------------------------
+*.apk
+*.aab
+*.ipa
+
+# ------------------------------
+# Logs
+# ------------------------------
+*.log
+npm-debug.*
+yarn-debug.*
+yarn-error.*
+debug_output.txt
+
+# ------------------------------
+# Metro / Cache
+# ------------------------------
+.metro-health-check*
+.cache/
+.tmp/
+
+# ------------------------------
+# Environment files
+# ------------------------------
+.env
+.env.*
+.env*.local
+
+# ------------------------------
+# macOS
+# ------------------------------
+.DS_Store
+
+# ------------------------------
+# TypeScript
+# ------------------------------
+*.tsbuildinfo
+
+# ------------------------------
+# Native / Signing / Secrets
+# ------------------------------
 *.jks
+*.keystore
 *.p8
 *.p12
 *.key
 *.mobileprovision
-
-# Metro
-.metro-health-check*
-
-# debug
-npm-debug.*
-yarn-debug.*
-yarn-error.*
-
-# macOS
-.DS_Store
 *.pem
 
-# local env files
-.env*.local
-
-# typescript
-*.tsbuildinfo
-
-# generated native folders
-/ios
-/android
-
-# Firebase admin key (SECRET!)
+# Firebase Admin key (SECRET!)
 scripts/serviceAccountKey.json
+
+# ------------------------------
+# Misc
+# ------------------------------
+*.orig.*
+.kotlin/

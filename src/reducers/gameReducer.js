@@ -4,8 +4,8 @@ export const initialState = {
 
     // ✅ takım ve tur
     activeTeam: "A",
-    roundNumber: 1,       // 1..roundsPerTeam
-    roundsPerTeam: 4,     // ayarlardan gelecek
+    roundNumber: 1,
+    roundsPerTeam: 4,
 
     teamAScore: 0,
     teamBScore: 0,
@@ -35,7 +35,10 @@ export function gameReducer(state = initialState, action) {
                 ...state,
                 words: list,
                 currentIndex: 0,
-                loading: !hasWords,
+
+                // ✅ Kritik: SET_WORDS geldiyse yükleme bitti
+                // Kelime yoksa "fetchError" modalını GameScreen gösterir.
+                loading: false,
 
                 // ✅ yeni oyun başlangıcı
                 activeTeam: "A",
@@ -82,7 +85,6 @@ export function gameReducer(state = initialState, action) {
             return { ...state, timeLeft: state.timeLeft - 1 };
 
         case "NEXT_ROUND": {
-            // payload: { duration, maxPass, roundsPerTeam } gelebilir
             const duration = action.payload?.duration ?? state.timeLeft ?? 60;
             const maxPass =
                 action.payload?.maxPass !== undefined ? action.payload.maxPass : state.passCount ?? 3;
@@ -92,7 +94,6 @@ export function gameReducer(state = initialState, action) {
                     ? Math.max(1, Number(action.payload.roundsPerTeam) || 1)
                     : state.roundsPerTeam;
 
-            // A turu bitti -> aynı turun B sırası
             if (state.activeTeam === "A") {
                 return {
                     ...state,
@@ -100,11 +101,10 @@ export function gameReducer(state = initialState, action) {
                     roundsPerTeam,
                     timeLeft: duration,
                     passCount: maxPass,
-                    isActive: false, // B otomatik başlamasın (modal + START_TURN ile başlasın)
+                    isActive: false,
                 };
             }
 
-            // B turu bitti -> ya bir sonraki tur A, ya oyun biter
             const isLastRound = state.roundNumber >= roundsPerTeam;
 
             if (isLastRound) {
@@ -123,7 +123,7 @@ export function gameReducer(state = initialState, action) {
                 roundsPerTeam,
                 timeLeft: duration,
                 passCount: maxPass,
-                isActive: false, // A da otomatik başlamasın (modal + START_TURN ile)
+                isActive: false,
             };
         }
 

@@ -1,4 +1,5 @@
-import React, { useEffect, useReducer, useRef } from "react";
+// src/screens/GameScreen.js
+import React, { useEffect, useReducer, useRef, useState, useCallback } from "react";
 import {
     View,
     Text,
@@ -13,17 +14,14 @@ import { SafeAreaView } from "react-native-safe-area-context";
 
 import { useAudioPlayer } from "expo-audio";
 
-import { getWordBatch } from "../services/wordService";
+import { loadWordsOfflineFirst, clearWordsCache } from "../services/wordService";
 import { gameReducer, initialState } from "../reducers/gameReducer";
 import { saveScore } from "../services/leaderboardService";
 import { logRoundEnd } from "../services/analyticsService";
 import useGameStore from "../store/useGameStore";
 
-// ✅ Yeni cache anahtarları (TTL + version + migrate)
-const WORDS_CACHE_KEY = "WORDS_CACHE_V1";
+// ✅ Arka arkaya aynı ilk kelime gelmesin
 const LAST_FIRST_WORD_KEY = "LAST_FIRST_WORD_V1";
-const CACHE_VERSION = 1;
-const CACHE_TTL_MS = 24 * 60 * 60 * 1000; // 24 saat
 
 // ✅ Fisher–Yates shuffle (uniform)
 const shuffleWords = (words) => {
@@ -42,7 +40,9 @@ const ensureDifferentFirstWord = async (words) => {
         if (!lastFirst || words.length <= 1) return words;
 
         if (words[0]?.targetWord === lastFirst) {
-            const idx = words.findIndex((w) => w?.targetWord && w.targetWord !== lastFirst);
+            const idx = words.findIndex(
+                (w) => w?.targetWord && w.targetWord !== lastFirst
+            );
             if (idx > 0) {
                 const newWords = [...words];
                 const tmp = newWords[0];
@@ -52,13 +52,14 @@ const ensureDifferentFirstWord = async (words) => {
             }
         }
         return words;
-    } catch (e) {
+    } catch (_) {
         return words;
     }
 };
 
 export default function GameScreen({ navigation }) {
     const [state, dispatch] = useReducer(gameReducer, initialState);
+    const [fetchError, setFetchError] = useState(null);
 
     // ✅ Selector ile al (re-render azaltır)
     const settings = useGameStore((s) => s.settings);
@@ -78,111 +79,48 @@ export default function GameScreen({ navigation }) {
                 errorPlayer.seekTo?.(0);
                 errorPlayer.play();
             }
-        } catch (e) {
-            console.log("Ses hatası:", e);
-        }
+        } catch (_) { }
     };
 
     // ✅ Interval güvenliği
     const intervalRef = useRef(null);
 
-    // 1) Oyun hazırlığı: ayarları yükle + kelimeleri yükle
+    // ✅ Offline-first kelime yükleme
+    const initGame = useCallback(async () => {
+        try {
+            setFetchError(null);
+
+            await loadSettings();
+
+            // Cache → Firestore (timeout+retry) → Local fallback
+            const { words } = await loadWordsOfflineFirst(200);
+
+            const list = Array.isArray(words) ? words : [];
+            let shuffled = shuffleWords(list);
+            shuffled = await ensureDifferentFirstWord(shuffled);
+
+            dispatch({ type: "SET_WORDS", payload: shuffled });
+            await AsyncStorage.setItem(
+                LAST_FIRST_WORD_KEY,
+                shuffled[0]?.targetWord || ""
+            );
+        } catch (e) {
+            // ✅ UI: bağlantı hatası + retry
+            setFetchError("Bağlantı hatası. Tekrar dene.");
+
+            // loading takılı kalmasın diye words set ediyoruz
+            dispatch({ type: "SET_WORDS", payload: [] });
+        }
+    }, [loadSettings]);
+
+    // 1) Oyun hazırlığı
     useEffect(() => {
-        const initGame = async () => {
-            try {
-                await loadSettings();
-
-                // 1) Yeni cache formatını dene
-                const cachedV1 = await AsyncStorage.getItem(WORDS_CACHE_KEY);
-
-                if (cachedV1 && cachedV1 !== "undefined") {
-                    const parsed = JSON.parse(cachedV1);
-
-                    const isValidVersion = parsed?.version === CACHE_VERSION;
-                    const fetchedAt = parsed?.fetchedAt || 0;
-                    const isNotExpired = Date.now() - fetchedAt < CACHE_TTL_MS;
-                    const hasWords = Array.isArray(parsed?.words) && parsed.words.length > 0;
-
-                    if (isValidVersion && isNotExpired && hasWords) {
-                        let shuffled = shuffleWords(parsed.words);
-                        shuffled = await ensureDifferentFirstWord(shuffled);
-
-                        dispatch({ type: "SET_WORDS", payload: shuffled });
-                        await AsyncStorage.setItem(LAST_FIRST_WORD_KEY, shuffled[0]?.targetWord || "");
-                        return;
-                    }
-                }
-
-                // 2) Eski cache "WORDS" varsa migrate et
-                const oldCached = await AsyncStorage.getItem("WORDS");
-                if (oldCached && oldCached !== "undefined") {
-                    const oldParsed = JSON.parse(oldCached);
-                    if (Array.isArray(oldParsed) && oldParsed.length > 0) {
-                        const payload = {
-                            version: CACHE_VERSION,
-                            fetchedAt: Date.now(),
-                            words: oldParsed,
-                        };
-                        await AsyncStorage.setItem(WORDS_CACHE_KEY, JSON.stringify(payload));
-                        // await AsyncStorage.removeItem("WORDS"); // istersen açabilirsin
-
-                        let shuffled = shuffleWords(oldParsed);
-                        shuffled = await ensureDifferentFirstWord(shuffled);
-
-                        dispatch({ type: "SET_WORDS", payload: shuffled });
-                        await AsyncStorage.setItem(LAST_FIRST_WORD_KEY, shuffled[0]?.targetWord || "");
-                        return;
-                    } else {
-                        await AsyncStorage.removeItem("WORDS");
-                    }
-                }
-
-                // 3) Firebase’den kelime çek
-                console.log("Fetching new words from Firebase...");
-                const words = await getWordBatch();
-                const wordList = Array.isArray(words) ? words : [];
-
-                let shuffled = shuffleWords(wordList);
-                shuffled = await ensureDifferentFirstWord(shuffled);
-
-                // Cache’e kaydet (yeni format)
-                if (shuffled.length > 0) {
-                    const payload = {
-                        version: CACHE_VERSION,
-                        fetchedAt: Date.now(),
-                        words: wordList, // kaynak listeyi kaydet (sonra her oyunda shuffle)
-                    };
-                    await AsyncStorage.setItem(WORDS_CACHE_KEY, JSON.stringify(payload));
-                    await AsyncStorage.setItem(LAST_FIRST_WORD_KEY, shuffled[0]?.targetWord || "");
-                }
-
-                dispatch({ type: "SET_WORDS", payload: shuffled });
-            } catch (e) {
-                console.log("CRITICAL ERROR in initGame:", e);
-
-                // UI değiştirmeden: bir kere cache temizleyip tekrar dene
-                try {
-                    await AsyncStorage.removeItem(WORDS_CACHE_KEY);
-                    await AsyncStorage.removeItem("WORDS");
-                } catch (_) { }
-
-                try {
-                    const words = await getWordBatch();
-                    const wordList = Array.isArray(words) ? words : [];
-                    const shuffled = shuffleWords(wordList);
-                    dispatch({ type: "SET_WORDS", payload: shuffled });
-                } catch (e2) {
-                    console.log("CRITICAL ERROR in retry initGame:", e2);
-                }
-            }
-        };
-
         initGame();
 
         return () => {
             if (intervalRef.current) clearInterval(intervalRef.current);
         };
-    }, [loadSettings]);
+    }, [initGame]);
 
     // 2) Ayarlar yüklendiğinde reducer'ı güncelle
     useEffect(() => {
@@ -193,7 +131,6 @@ export default function GameScreen({ navigation }) {
             payload: {
                 duration: settings.duration,
                 maxPass: settings.maxPass,
-                // ✅ YENİ
                 roundsPerTeam: settings.roundsPerTeam,
             },
         });
@@ -219,12 +156,12 @@ export default function GameScreen({ navigation }) {
         };
     }, [state.isActive]);
 
-    // 4) Tur bitince (timeLeft 0'a düşünce reducer isActive=false yapıyor)
+    // 4) Tur bitince
     useEffect(() => {
         if (state.timeLeft === 0 && state.isActive === false && !state.isGameOver) {
-            const teamScore = state.activeTeam === "A" ? state.teamAScore : state.teamBScore;
+            const teamScore =
+                state.activeTeam === "A" ? state.teamAScore : state.teamBScore;
 
-            // Bu noktada activeTeam = turu bitiren takım
             logRoundEnd(state.activeTeam, teamScore);
 
             dispatch({
@@ -232,7 +169,6 @@ export default function GameScreen({ navigation }) {
                 payload: {
                     duration: settings?.duration,
                     maxPass: settings?.maxPass,
-                    // ✅ YENİ
                     roundsPerTeam: settings?.roundsPerTeam,
                 },
             });
@@ -256,14 +192,13 @@ export default function GameScreen({ navigation }) {
         const finalize = async () => {
             try {
                 const winnerScore =
-                    state.teamAScore > state.teamBScore ? state.teamAScore : state.teamBScore;
+                    state.teamAScore > state.teamBScore
+                        ? state.teamAScore
+                        : state.teamBScore;
 
-                // Skor kaydı (hata olsa da akış devam etsin)
                 try {
                     await saveScore("Player", winnerScore);
-                } catch (e) {
-                    console.log("saveScore error:", e);
-                }
+                } catch (_) { }
 
                 setFinalScores({ A: state.teamAScore, B: state.teamBScore });
 
@@ -272,8 +207,7 @@ export default function GameScreen({ navigation }) {
                 }, 1000);
 
                 return () => clearTimeout(timerId);
-            } catch (e) {
-                console.log("Finalize error:", e);
+            } catch (_) {
                 navigation?.replace?.("Result");
             }
         };
@@ -303,7 +237,8 @@ export default function GameScreen({ navigation }) {
         dispatch({ type: "START_TURN" });
     };
 
-    if (state.loading && !state.words?.length) {
+    // ✅ Loading
+    if (state.loading && !state.words?.length && !fetchError) {
         return (
             <View className="flex-1 justify-center items-center bg-white">
                 <ActivityIndicator size="large" color="#4f46e5" />
@@ -312,10 +247,10 @@ export default function GameScreen({ navigation }) {
     }
 
     const currentWord = state.words?.[state.currentIndex];
-    const activeTeamName = state.activeTeam === "A" ? settings?.teamAName : settings?.teamBName;
+    const activeTeamName =
+        state.activeTeam === "A" ? settings?.teamAName : settings?.teamBName;
 
-    // ✅ Modalda göstermek için: önceki takım (turu bitiren takım)
-    // NEXT_ROUND sonrası activeTeam = sıradaki takım olduğu için, önceki takım = tersidir.
+    // ✅ Modalda göstermek için: önceki takım
     const prevTeam = state.activeTeam === "A" ? "B" : "A";
     const prevTeamName = prevTeam === "A" ? settings?.teamAName : settings?.teamBName;
     const prevTeamScore = prevTeam === "A" ? state.teamAScore : state.teamBScore;
@@ -415,9 +350,45 @@ export default function GameScreen({ navigation }) {
                 </TouchableOpacity>
             </View>
 
-            {/* ✅ Tur Değişimi Modalı (Her geçişte görünür: A->B, B->A) */}
+            {/* ✅ Fetch Error Modal (internet / cache yoksa vs.) */}
+            <Modal visible={!!fetchError} transparent animationType="fade">
+                <View className="flex-1 items-center justify-center bg-black/40 px-6">
+                    <View className="bg-white w-full rounded-3xl p-6">
+                        <Text className="text-lg font-black mb-2">Bağlantı Sorunu</Text>
+                        <Text className="text-base mb-4">{fetchError}</Text>
+
+                        <View className="flex-row gap-3">
+                            <TouchableOpacity
+                                className="flex-1 bg-slate-200 h-12 rounded-2xl items-center justify-center"
+                                onPress={async () => {
+                                    // İsteğe bağlı: cache’i de temizleyip yeniden dene
+                                    try {
+                                        await clearWordsCache?.();
+                                    } catch (_) { }
+                                    setFetchError(null);
+                                    initGame();
+                                }}
+                            >
+                                <Text className="text-slate-800 font-black">Tekrar Dene</Text>
+                            </TouchableOpacity>
+
+                            <TouchableOpacity
+                                className="flex-1 bg-cyan-700 h-12 rounded-2xl items-center justify-center"
+                                onPress={() => {
+                                    // Eğer user kapatmak isterse
+                                    setFetchError(null);
+                                }}
+                            >
+                                <Text className="text-white font-black">Kapat</Text>
+                            </TouchableOpacity>
+                        </View>
+                    </View>
+                </View>
+            </Modal>
+
+            {/* ✅ Tur Değişimi Modalı */}
             <Modal
-                visible={!state.isActive && !state.isGameOver && state.timeLeft > 0}
+                visible={!state.isActive && !state.isGameOver && state.timeLeft > 0 && !fetchError}
                 transparent
                 animationType="slide"
             >
