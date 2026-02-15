@@ -16,7 +16,7 @@ export default function ResultScreen({ navigation }) {
     const [showConfetti, setShowConfetti] = useState(false);
 
     // ✅ Kazanan sesi (winner.mp3 varsa onu tercih et; yoksa success.mp3 kullan)
-    const winPlayer = useAudioPlayer(require("../../assets/winner.mp3"));
+    const winPlayer = useAudioPlayer(require("../../assets/success.mp3"));
 
     // Skorları güvenli oku
     const scoreA = Number(finalScores?.A ?? 0);
@@ -72,15 +72,24 @@ export default function ResultScreen({ navigation }) {
 
             <View className="flex-1 items-center justify-center px-6">
                 {/* Taç İkonu ve Başlık */}
-                <View className="bg-amber-400 p-6 rounded-full mb-6 shadow-2xl">
+                <View className="bg-amber-400 p-8 rounded-full mb-6 shadow-2xl">
                     <Ionicons name="trophy" size={60} color="white" />
                 </View>
 
-                <Text className="text-white text-5xl font-black mb-2 uppercase italic tracking-tighter text-center">
+                <Text
+                    className="text-white text-5xl font-black mb-6 uppercase italic tracking-tighter text-center"
+                    numberOfLines={1}
+                >
                     Oyun Bitti!
                 </Text>
 
-                <Text className="text-indigo-200 text-lg font-bold mb-12 uppercase tracking-widest text-center px-4">
+
+                <Text
+                    className="text-indigo-200 text-3xl font-bold mb-12 uppercase tracking-widest text-center px-4"
+                    numberOfLines={2}
+                    adjustsFontSizeToFit
+                    minimumFontScale={0.75}
+                >
                     {winnerKey === "Draw" ? "Dostluk Kazandı!" : `${winnerName} KAZANDI!`}
                 </Text>
 
