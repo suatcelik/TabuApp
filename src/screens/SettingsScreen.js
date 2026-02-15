@@ -186,7 +186,7 @@ export default function SettingsScreen({ navigation }) {
                         {/* Pas Hakkı Seçimi */}
                         <View className="gap-4">
                             <Text className="text-slate-500 font-bold uppercase tracking-widest text-xs ml-8">
-                                -Pas Hakkı-
+                                Pas Hakkı
                             </Text>
                             <View className="bg-white p-5 rounded-[35px] border border-slate-100 shadow-sm">
                                 <TextInput

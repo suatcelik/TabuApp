@@ -386,7 +386,7 @@ export default function GameScreen({ navigation }) {
             </View>
 
             {/* Kontrol Butonları */}
-            <View className="flex-row justify-between px-6 pb-10 space-x-4">
+            <View className="flex-row px-6 pb-10 gap-4">
                 <TouchableOpacity
                     className="flex-1 bg-rose-500 h-24 rounded-3xl items-center justify-center shadow-lg shadow-rose-200 active:scale-95"
                     onPress={onTaboo}
@@ -402,7 +402,7 @@ export default function GameScreen({ navigation }) {
                     disabled={!state.isActive}
                 >
                     <Ionicons name="refresh-circle" size={32} color="white" />
-                    <Text className="text-white font-black uppercase mt-1">Pas</Text>
+                    <Text className="text-white font-black uppercase mt-1 ">Pas</Text>
                 </TouchableOpacity>
 
                 <TouchableOpacity
