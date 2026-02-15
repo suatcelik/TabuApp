@@ -99,8 +99,8 @@ export default function SettingsScreen({ navigation }) {
                 <ScrollView className="flex-1" contentContainerStyle={{ paddingBottom: 24 }}>
                     <View className="p-6 space-y-8">
                         {/* Takım İsimleri */}
-                        <View className="gap-4">
-                            <Text className="text-slate-400 font-bold uppercase tracking-widest text-xs ml-2">
+                        <View className="gap-4 mb-6">
+                            <Text className="text-slate-500 font-bold uppercase tracking-widest text-xs ml-8 ">
                                 Takım İsimleri
                             </Text>
 
@@ -111,13 +111,11 @@ export default function SettingsScreen({ navigation }) {
                                     onChangeText={(t) => updateField("teamAName", t)}
                                     placeholder="Takım A"
                                     placeholderTextColor="#94a3b8"
-                                    className="bg-slate-50 border border-slate-200 rounded-2xl px-4 py-3 text-slate-800 font-bold"
+                                    className="bg-slate-50 border border-slate-200 rounded-2xl px-4 py-3 text-slate-800 font-bold mb-6"
                                     maxLength={20}
                                     autoCapitalize="words"
                                 />
-                            </View>
 
-                            <View className="bg-white p-5 rounded-[35px] border border-slate-100 shadow-sm">
                                 <Text className="text-slate-500 font-bold mb-2">Takım B</Text>
                                 <TextInput
                                     value={settings?.teamBName ?? "Takım B"}
@@ -132,8 +130,8 @@ export default function SettingsScreen({ navigation }) {
                         </View>
 
                         {/* Tur Süresi Seçimi */}
-                        <View className="gap-4">
-                            <Text className="text-slate-400 font-bold uppercase tracking-widest text-xs ml-2">
+                        <View className="gap-4 mb-6">
+                            <Text className="text-slate-500 font-bold uppercase tracking-widest text-xs ml-8">
                                 Tur Süresi (Saniye)
                             </Text>
                             <View className="bg-white p-5 rounded-[35px] border border-slate-100 shadow-sm">
@@ -156,8 +154,8 @@ export default function SettingsScreen({ navigation }) {
                         </View>
 
                         {/* ✅ YENİ: Tur Sayısı */}
-                        <View className="gap-4">
-                            <Text className="text-slate-400 font-bold uppercase tracking-widest text-xs ml-2">
+                        <View className="gap-4 mb-6">
+                            <Text className="text-slate-500 font-bold uppercase tracking-widest text-xs ml-8">
                                 Tur Sayısı (Takım Başına)
                             </Text>
                             <View className="bg-white p-5 rounded-[35px] border border-slate-100 shadow-sm">
@@ -187,8 +185,8 @@ export default function SettingsScreen({ navigation }) {
 
                         {/* Pas Hakkı Seçimi */}
                         <View className="gap-4">
-                            <Text className="text-slate-400 font-bold uppercase tracking-widest text-xs ml-2">
-                                Pas Hakkı
+                            <Text className="text-slate-500 font-bold uppercase tracking-widest text-xs ml-8">
+                                -Pas Hakkı-
                             </Text>
                             <View className="bg-white p-5 rounded-[35px] border border-slate-100 shadow-sm">
                                 <TextInput
