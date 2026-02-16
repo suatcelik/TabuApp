@@ -15,12 +15,14 @@ import HomeScreen from "./src/screens/HomeScreen";
 import GameScreen from "./src/screens/GameScreen";
 import SettingsScreen from "./src/screens/SettingsScreen";
 import ResultScreen from "./src/screens/ResultScreen";
+import PrivacyPolicyScreen from "./src/screens/PrivacyPolicyScreen"; // ✅ EKLENDİ
 
 const Stack = createNativeStackNavigator();
 
 export default function App() {
   // ✅ ErrorBoundary reset için: komple app'i yeniden mount eder
   const [appKey, setAppKey] = React.useState(0);
+
 
   // ✅ Ads SDK init + preload
   React.useEffect(() => {
@@ -45,6 +47,7 @@ export default function App() {
               <Stack.Screen name="Game" component={GameScreen} />
               <Stack.Screen name="Settings" component={SettingsScreen} />
               <Stack.Screen name="Result" component={ResultScreen} />
+              <Stack.Screen name="PrivacyPolicy" component={PrivacyPolicyScreen} />
             </Stack.Navigator>
           </NavigationContainer>
         </SafeAreaProvider>

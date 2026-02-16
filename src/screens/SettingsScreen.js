@@ -205,6 +205,34 @@ export default function SettingsScreen({ navigation }) {
 
                         {/* Titreşim Kontrolü */}
                         {/* ... senin devam eden titreşim kısmın burada aynı kalabilir ... */}
+
+                        {/* ✅ YASAL / GİZLİLİK POLİTİKASI (EKLENDİ) */}
+                        <View className="gap-4 mt-6">
+                            <Text className="text-slate-500 font-bold uppercase tracking-widest text-xs ml-8">
+                                Yasal
+                            </Text>
+
+                            <View className="bg-white p-5 rounded-[35px] border border-slate-100 shadow-sm">
+                                <TouchableOpacity
+                                    onPress={() => navigation.navigate("PrivacyPolicy")}
+                                    className="flex-row items-center justify-between py-3"
+                                    activeOpacity={0.8}
+                                >
+                                    <View className="flex-row items-center">
+                                        <Ionicons name="shield-checkmark" size={22} color="#4f46e5" />
+                                        <Text className="ml-3 text-slate-800 font-extrabold">
+                                            Gizlilik Politikası
+                                        </Text>
+                                    </View>
+
+                                    <Ionicons name="chevron-forward" size={22} color="#94a3b8" />
+                                </TouchableOpacity>
+
+                                <Text className="text-slate-400 text-xs mt-2 ml-1">
+                                    Verilerin kullanımı, reklamlar ve satın alma hakkında bilgi.
+                                </Text>
+                            </View>
+                        </View>
                     </View>
                 </ScrollView>
 
