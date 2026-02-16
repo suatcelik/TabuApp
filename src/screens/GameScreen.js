@@ -274,16 +274,25 @@ export default function GameScreen({ navigation }) {
                     <Text className="text-slate-400 text-[10px] font-bold uppercase">
                         {activeTeamName}
                     </Text>
-                    <Text className="text-indigo-600 text-3xl font-black">
+                    <Text className="text-sky-500 text-3xl font-black">
                         {state.activeTeam === "A" ? state.teamAScore : state.teamBScore}
                     </Text>
                 </View>
 
                 <View className="items-center mx-4">
-                    <View className="bg-indigo-600 px-6 py-2 rounded-2xl shadow-lg shadow-indigo-200">
+                    <View className="flex-row items-center bg-fuchsia-700 px-6 py-3 rounded-2xl shadow-lg shadow-indigo-200">
+
+                        <Ionicons
+                            name="hourglass-outline"
+                            size={20}
+                            color="white"
+                            style={{ marginRight: 8 }}
+                        />
+
                         <Text className="text-white font-black text-xl">
                             {mm}:{ss}
                         </Text>
+
                     </View>
                     <Text className="text-slate-400 text-[10px] font-bold uppercase mt-2">
                         TUR {roundLabel}
@@ -292,14 +301,14 @@ export default function GameScreen({ navigation }) {
 
                 <View className="items-center flex-1">
                     <Text className="text-slate-400 text-[10px] font-bold uppercase">Pas</Text>
-                    <Text className="text-amber-500 text-3xl font-black">{state.passCount}</Text>
+                    <Text className="text-amber-400 text-3xl font-black">{state.passCount}</Text>
                 </View>
             </View>
 
             {/* Kelime Kartı */}
             <View className="flex-1 justify-center px-8">
                 <View className="bg-white rounded-[45px] shadow-2xl overflow-hidden border border-slate-100">
-                    <View className="bg-indigo-500 py-10 items-center">
+                    <View className="bg-fuchsia-700 py-10 items-center">
                         <Text className="text-white text-4xl font-black uppercase tracking-tighter text-center px-4">
                             {currentWord?.targetWord ?? "—"}
                         </Text>
@@ -323,7 +332,7 @@ export default function GameScreen({ navigation }) {
             {/* Kontrol Butonları */}
             <View className="flex-row px-6 pb-10 gap-4">
                 <TouchableOpacity
-                    className="flex-1 bg-rose-500 h-24 rounded-3xl items-center justify-center shadow-lg shadow-rose-200 active:scale-95"
+                    className="flex-1 bg-fuchsia-700 h-24 rounded-3xl items-center justify-center shadow-lg shadow-rose-200 active:scale-95"
                     onPress={onTaboo}
                     disabled={!state.isActive}
                 >
@@ -332,7 +341,7 @@ export default function GameScreen({ navigation }) {
                 </TouchableOpacity>
 
                 <TouchableOpacity
-                    className="flex-1 bg-amber-300 h-24 rounded-3xl items-center justify-center shadow-lg shadow-amber-200 active:scale-95"
+                    className="flex-1 bg-amber-400 h-24 rounded-3xl items-center justify-center shadow-lg shadow-amber-200 active:scale-95"
                     onPress={onPass}
                     disabled={!state.isActive}
                 >
@@ -341,7 +350,7 @@ export default function GameScreen({ navigation }) {
                 </TouchableOpacity>
 
                 <TouchableOpacity
-                    className="flex-1 bg-cyan-700 h-24 rounded-3xl items-center justify-center shadow-lg shadow-emerald-200 active:scale-95"
+                    className="flex-1 bg-sky-500 h-24 rounded-3xl items-center justify-center shadow-lg shadow-emerald-200 active:scale-95"
                     onPress={onCorrect}
                     disabled={!state.isActive}
                 >
@@ -402,7 +411,7 @@ export default function GameScreen({ navigation }) {
                             Tur Sonucu
                         </Text>
 
-                        <Text className="text-indigo-600 text-3xl font-black mb-1 text-center">
+                        <Text className="text-fuchsia-700 text-3xl font-black mb-1 text-center">
                             {prevTeamName}
                         </Text>
                         <Text className="text-5xl font-black text-slate-800 mb-2">{prevTeamScore}</Text>
@@ -415,12 +424,12 @@ export default function GameScreen({ navigation }) {
 
                         <Text className="text-slate-500 font-bold mb-8 text-center text-lg leading-6">
                             Harika iş çıkardınız!{"\n"}Şimdi sıra{" "}
-                            <Text className="text-indigo-600 font-black">{activeTeamName}</Text>{" "}
+                            <Text className="text-fuchsia-700 font-black">{activeTeamName}</Text>{" "}
                             ekibinde.
                         </Text>
 
                         <TouchableOpacity
-                            className="bg-indigo-600 w-full py-6 rounded-3xl shadow-xl active:bg-indigo-700 active:scale-95"
+                            className="bg-fuchsia-700 w-full py-6 rounded-3xl shadow-xl active:bg-indigo-700 active:scale-95"
                             onPress={startNextTurn}
                         >
                             <Text className="text-white font-black text-center text-xl uppercase tracking-widest">

@@ -57,7 +57,7 @@ export default function ResultScreen({ navigation }) {
     };
 
     return (
-        <SafeAreaView className="flex-1 bg-indigo-900">
+        <SafeAreaView className="flex-1 bg-fuchsia-700">
             <StatusBar barStyle="light-content" />
 
             {/* Konfeti Efekti */}
@@ -85,7 +85,7 @@ export default function ResultScreen({ navigation }) {
 
 
                 <Text
-                    className="text-indigo-200 text-3xl font-bold mb-12 uppercase tracking-widest text-center px-4"
+                    className="text-white text-3xl font-bold mb-12 uppercase tracking-widest text-center px-4"
                     numberOfLines={2}
                     adjustsFontSizeToFit
                     minimumFontScale={0.75}
@@ -99,7 +99,7 @@ export default function ResultScreen({ navigation }) {
                         {/* Takım A */}
                         <View className="items-center flex-1">
                             <Text
-                                className="text-indigo-300 font-bold mb-2 uppercase text-xs text-center"
+                                className="text-white font-bold mb-2 uppercase text-base text-center"
                                 numberOfLines={1}
                             >
                                 {settings?.teamAName}
@@ -118,7 +118,7 @@ export default function ResultScreen({ navigation }) {
                         {/* Takım B */}
                         <View className="items-center flex-1">
                             <Text
-                                className="text-indigo-300 font-bold mb-2 uppercase text-xs text-center"
+                                className="text-white font-bold mb-2 uppercase text-base text-center"
                                 numberOfLines={1}
                             >
                                 {settings?.teamBName}
@@ -139,7 +139,7 @@ export default function ResultScreen({ navigation }) {
                         className="bg-amber-400 w-full py-6 rounded-3xl shadow-2xl active:scale-95"
                         onPress={handleNewGame}
                     >
-                        <Text className="text-indigo-900 text-center text-2xl font-black uppercase italic">
+                        <Text className="text-white text-center text-2xl font-black uppercase italic">
                             YENİ OYUN
                         </Text>
                     </TouchableOpacity>

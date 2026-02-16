@@ -3,6 +3,7 @@ import { View, Text, TouchableOpacity, StatusBar, Image } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import useGameStore from "../store/useGameStore";
+import Svg, { Path, Text as SvgText, TextPath } from 'react-native-svg';
 
 export default function HomeScreen({ navigation }) {
     const { resetGame } = useGameStore();
@@ -19,11 +20,13 @@ export default function HomeScreen({ navigation }) {
             {/* Üst Alan */}
             <View className="flex-1 justify-center items-center px-8">
                 {/* Glow / Hero arka plan */}
-                <View className="absolute -top-24 w-[420px] h-[420px] rounded-full bg-indigo-200/40" />
-                <View className="absolute top-24 w-[280px] h-[280px] rounded-full bg-indigo-300/30" />
+                <View className="absolute -top-24 w-[420px] h-[420px] rounded-full bg-indigo-300/40" />
+                <View className="absolute top-24 w-[280px] h-[280px] rounded-full bg-indigo-400/30" />
+
+
 
                 {/* Logo */}
-                <View className="items-center justify-center mb-6">
+                <View className="items-center justify-center mb-8">
 
                     <Image
                         source={require("../../assets/logo.png")}
@@ -35,13 +38,20 @@ export default function HomeScreen({ navigation }) {
 
                 {/* Başlık: alt alta */}
                 <View className="items-center">
-                    <Text className="text-6xl font-black text-slate-900 tracking-tighter mb-2">
-                        TABU
-                    </Text>
-                    <Text className="text-3xl font-extrabold text-indigo-600 tracking-widest -mt-2">
-                        KELİME
+                    <Svg width={300} height={95}>
+                        <Path id="curve" d="M 20 85 Q 150 5 280 85" fill="transparent" />
+                        <SvgText fill="#0f172a" fontSize="58" fontWeight="900" textAnchor="middle">
+                            <TextPath href="#curve" startOffset="50%">
+                                TABU
+                            </TextPath>
+                        </SvgText>
+                    </Svg>
+
+                    <Text className="text-6xl font-black text-fuchsia-700 -mt-14">
+                        GO
                     </Text>
                 </View>
+
 
                 <Text className="text-slate-500 font-semibold text-base mt-4 text-center px-4">
                     Arkadaşlarınla eğlenceye hazır mısın?
@@ -51,7 +61,7 @@ export default function HomeScreen({ navigation }) {
             {/* Alt Alan: Butonlar */}
             <View className="px-8 pb-10 space-y-4">
                 <TouchableOpacity
-                    className="bg-indigo-600 py-6 rounded-3xl shadow-2xl shadow-indigo-300 flex-row justify-center items-center active:scale-95"
+                    className="bg-fuchsia-700 py-6 rounded-3xl shadow-2xl shadow-indigo-300 flex-row justify-center items-center active:scale-95"
                     onPress={handleStart}
                 >
                     <Ionicons name="play" size={24} color="white" />
@@ -71,7 +81,7 @@ export default function HomeScreen({ navigation }) {
                 </TouchableOpacity>
 
                 <Text className="text-center text-slate-300 text-xs mt-4 font-bold uppercase tracking-tighter">
-                    v1.0.0 - Tabu Kelime
+                    v1.0.0 - Tabu Go
                 </Text>
             </View>
         </SafeAreaView>
