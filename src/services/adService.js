@@ -14,7 +14,7 @@ const PROD_INTERSTITIAL_ID = "ca-app-pub-7780845735147349/8291922826";
 
 // ✅ Yeni AdMob hesabında gerçek reklam hemen dolmayabilir.
 // Preview'da kesin görmek için bunu geçici TRUE yapabilirsin.
-const FORCE_TEST_ADS = true;
+const FORCE_TEST_ADS = false;
 
 // 🔧 Ad unit seçimi
 const AD_UNIT_ID = FORCE_TEST_ADS ? TestIds.INTERSTITIAL : (__DEV__ ? TestIds.INTERSTITIAL : PROD_INTERSTITIAL_ID);
