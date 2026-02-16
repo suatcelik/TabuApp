@@ -70,6 +70,9 @@ export default function GameScreen({ navigation }) {
     const successPlayer = useAudioPlayer(require("../../assets/success.mp3"));
     const errorPlayer = useAudioPlayer(require("../../assets/error.mp3"));
 
+    // ✅ Pixabay sesi: assets/tick_slow.mp3
+    const tickSlowPlayer = useAudioPlayer(require("../../assets/tick_slow.mp3"));
+
     const playSound = (type) => {
         try {
             if (type === "SUCCESS") {
@@ -82,8 +85,18 @@ export default function GameScreen({ navigation }) {
         } catch (_) { }
     };
 
+    const playTickSlow = () => {
+        try {
+            tickSlowPlayer.seekTo?.(0);
+            tickSlowPlayer.play();
+        } catch (_) { }
+    };
+
     // ✅ Interval güvenliği
     const intervalRef = useRef(null);
+
+    // ✅ 10 saniyenin altına ilk kez düşünce 1 kere çalsın
+    const hasPlayedTickRef = useRef(false);
 
     // ✅ Offline-first kelime yükleme
     const initGame = useCallback(async () => {
@@ -155,6 +168,27 @@ export default function GameScreen({ navigation }) {
             intervalRef.current = null;
         };
     }, [state.isActive]);
+
+    // ✅ Süre 10 ve altına ilk kez düşünce 1 kere çal; süre bitince/reset ol
+    useEffect(() => {
+        // oyun aktif değilse reset
+        if (!state.isActive) {
+            hasPlayedTickRef.current = false;
+            return;
+        }
+
+        // süre bitti (0 veya altı) reset
+        if (state.timeLeft <= 0) {
+            hasPlayedTickRef.current = false;
+            return;
+        }
+
+        // 10 ve altına ilk kez düştüğünde 1 kere çal
+        if (state.timeLeft <= 8 && !hasPlayedTickRef.current) {
+            hasPlayedTickRef.current = true;
+            playTickSlow();
+        }
+    }, [state.isActive, state.timeLeft]);
 
     // 4) Tur bitince
     useEffect(() => {
@@ -234,6 +268,8 @@ export default function GameScreen({ navigation }) {
     };
 
     const startNextTurn = () => {
+        // ✅ yeni turda tekrar 10 altına düşünce çalsın
+        hasPlayedTickRef.current = false;
         dispatch({ type: "START_TURN" });
     };
 
@@ -281,18 +317,15 @@ export default function GameScreen({ navigation }) {
 
                 <View className="items-center mx-4">
                     <View className="flex-row items-center bg-fuchsia-700 px-6 py-3 rounded-2xl shadow-lg shadow-indigo-200">
-
                         <Ionicons
                             name="hourglass-outline"
                             size={20}
                             color="white"
                             style={{ marginRight: 8 }}
                         />
-
                         <Text className="text-white font-black text-xl">
                             {mm}:{ss}
                         </Text>
-
                     </View>
                     <Text className="text-slate-400 text-[10px] font-bold uppercase mt-2">
                         TUR {roundLabel}
@@ -370,7 +403,6 @@ export default function GameScreen({ navigation }) {
                             <TouchableOpacity
                                 className="flex-1 bg-slate-200 h-12 rounded-2xl items-center justify-center"
                                 onPress={async () => {
-                                    // İsteğe bağlı: cache’i de temizleyip yeniden dene
                                     try {
                                         await clearWordsCache?.();
                                     } catch (_) { }
@@ -383,10 +415,7 @@ export default function GameScreen({ navigation }) {
 
                             <TouchableOpacity
                                 className="flex-1 bg-cyan-700 h-12 rounded-2xl items-center justify-center"
-                                onPress={() => {
-                                    // Eğer user kapatmak isterse
-                                    setFetchError(null);
-                                }}
+                                onPress={() => setFetchError(null)}
                             >
                                 <Text className="text-white font-black">Kapat</Text>
                             </TouchableOpacity>
