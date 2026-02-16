@@ -23,6 +23,9 @@ import useGameStore from "../store/useGameStore";
 // ✅ Arka arkaya aynı ilk kelime gelmesin
 const LAST_FIRST_WORD_KEY = "LAST_FIRST_WORD_V1";
 
+// ✅ 3 renk döngüsü (İSTEDİĞİN RENKLER)
+const CARD_COLORS = ["bg-fuchsia-700", "bg-amber-400", "bg-sky-500"];
+
 // ✅ Fisher–Yates shuffle (uniform)
 const shuffleWords = (words) => {
     const arr = [...words];
@@ -40,9 +43,7 @@ const ensureDifferentFirstWord = async (words) => {
         if (!lastFirst || words.length <= 1) return words;
 
         if (words[0]?.targetWord === lastFirst) {
-            const idx = words.findIndex(
-                (w) => w?.targetWord && w.targetWord !== lastFirst
-            );
+            const idx = words.findIndex((w) => w?.targetWord && w.targetWord !== lastFirst);
             if (idx > 0) {
                 const newWords = [...words];
                 const tmp = newWords[0];
@@ -113,10 +114,7 @@ export default function GameScreen({ navigation }) {
             shuffled = await ensureDifferentFirstWord(shuffled);
 
             dispatch({ type: "SET_WORDS", payload: shuffled });
-            await AsyncStorage.setItem(
-                LAST_FIRST_WORD_KEY,
-                shuffled[0]?.targetWord || ""
-            );
+            await AsyncStorage.setItem(LAST_FIRST_WORD_KEY, shuffled[0]?.targetWord || "");
         } catch (e) {
             // ✅ UI: bağlantı hatası + retry
             setFetchError("Bağlantı hatası. Tekrar dene.");
@@ -193,8 +191,7 @@ export default function GameScreen({ navigation }) {
     // 4) Tur bitince
     useEffect(() => {
         if (state.timeLeft === 0 && state.isActive === false && !state.isGameOver) {
-            const teamScore =
-                state.activeTeam === "A" ? state.teamAScore : state.teamBScore;
+            const teamScore = state.activeTeam === "A" ? state.teamAScore : state.teamBScore;
 
             logRoundEnd(state.activeTeam, teamScore);
 
@@ -225,10 +222,7 @@ export default function GameScreen({ navigation }) {
 
         const finalize = async () => {
             try {
-                const winnerScore =
-                    state.teamAScore > state.teamBScore
-                        ? state.teamAScore
-                        : state.teamBScore;
+                const winnerScore = state.teamAScore > state.teamBScore ? state.teamAScore : state.teamBScore;
 
                 try {
                     await saveScore("Player", winnerScore);
@@ -283,8 +277,7 @@ export default function GameScreen({ navigation }) {
     }
 
     const currentWord = state.words?.[state.currentIndex];
-    const activeTeamName =
-        state.activeTeam === "A" ? settings?.teamAName : settings?.teamBName;
+    const activeTeamName = state.activeTeam === "A" ? settings?.teamAName : settings?.teamBName;
 
     // ✅ Modalda göstermek için: önceki takım
     const prevTeam = state.activeTeam === "A" ? "B" : "A";
@@ -300,6 +293,12 @@ export default function GameScreen({ navigation }) {
     const totalRounds = state.roundsPerTeam ?? settings?.roundsPerTeam ?? 4;
     const roundLabel = `${state.roundNumber ?? 1}/${totalRounds}`;
 
+    // ✅ KART RENGİ: currentIndex değişince otomatik döner
+    const currentColor = CARD_COLORS[(state.currentIndex ?? 0) % CARD_COLORS.length];
+
+    // ✅ Amber açık: yazıyı koyu yap (okunabilirlik için)
+    const headerTextColor = currentColor === "bg-amber-400" ? "text-slate-900" : "text-white";
+
     return (
         <SafeAreaView className="flex-1 bg-slate-50">
             <StatusBar barStyle="dark-content" />
@@ -307,9 +306,7 @@ export default function GameScreen({ navigation }) {
             {/* Üst Bilgi Çubuğu */}
             <View className="flex-row justify-between items-center px-6 py-4 bg-white shadow-sm">
                 <View className="items-center flex-1">
-                    <Text className="text-slate-400 text-[10px] font-bold uppercase">
-                        {activeTeamName}
-                    </Text>
+                    <Text className="text-slate-400 text-[10px] font-bold uppercase">{activeTeamName}</Text>
                     <Text className="text-sky-500 text-3xl font-black">
                         {state.activeTeam === "A" ? state.teamAScore : state.teamBScore}
                     </Text>
@@ -317,19 +314,12 @@ export default function GameScreen({ navigation }) {
 
                 <View className="items-center mx-4">
                     <View className="flex-row items-center bg-fuchsia-700 px-6 py-3 rounded-2xl shadow-lg shadow-indigo-200">
-                        <Ionicons
-                            name="hourglass-outline"
-                            size={20}
-                            color="white"
-                            style={{ marginRight: 8 }}
-                        />
+                        <Ionicons name="hourglass-outline" size={20} color="white" style={{ marginRight: 8 }} />
                         <Text className="text-white font-black text-xl">
                             {mm}:{ss}
                         </Text>
                     </View>
-                    <Text className="text-slate-400 text-[10px] font-bold uppercase mt-2">
-                        TUR {roundLabel}
-                    </Text>
+                    <Text className="text-slate-400 text-[10px] font-bold uppercase mt-2">TUR {roundLabel}</Text>
                 </View>
 
                 <View className="items-center flex-1">
@@ -341,8 +331,9 @@ export default function GameScreen({ navigation }) {
             {/* Kelime Kartı */}
             <View className="flex-1 justify-center px-8">
                 <View className="bg-white rounded-[45px] shadow-2xl overflow-hidden border border-slate-100">
-                    <View className="bg-fuchsia-700 py-10 items-center">
-                        <Text className="text-white text-4xl font-black uppercase tracking-tighter text-center px-4">
+                    {/* ✅ HEADER RENGİ DİNAMİK */}
+                    <View className={`${currentColor} py-10 items-center`}>
+                        <Text className={`${headerTextColor} text-4xl font-black uppercase tracking-tighter text-center px-4`}>
                             {currentWord?.targetWord ?? "—"}
                         </Text>
                     </View>
@@ -350,9 +341,7 @@ export default function GameScreen({ navigation }) {
                     <View className="py-10 items-center">
                         {(currentWord?.forbiddenWords ?? []).map((word, index) => (
                             <View key={`${word}-${index}`} className="py-2 w-full items-center">
-                                <Text className="text-slate-600 text-2xl font-bold uppercase tracking-tight">
-                                    {word}
-                                </Text>
+                                <Text className="text-slate-600 text-2xl font-bold uppercase tracking-tight">{word}</Text>
                                 {index < (currentWord?.forbiddenWords?.length ?? 0) - 1 && (
                                     <View className="w-1/2 h-[1px] bg-slate-100 mt-2" />
                                 )}
@@ -436,25 +425,18 @@ export default function GameScreen({ navigation }) {
                             <Ionicons name="stats-chart" size={40} color="#f59e0b" />
                         </View>
 
-                        <Text className="text-slate-400 font-bold uppercase tracking-widest text-xs mb-2">
-                            Tur Sonucu
-                        </Text>
+                        <Text className="text-slate-400 font-bold uppercase tracking-widest text-xs mb-2">Tur Sonucu</Text>
 
-                        <Text className="text-fuchsia-700 text-3xl font-black mb-1 text-center">
-                            {prevTeamName}
-                        </Text>
+                        <Text className="text-fuchsia-700 text-3xl font-black mb-1 text-center">{prevTeamName}</Text>
                         <Text className="text-5xl font-black text-slate-800 mb-2">{prevTeamScore}</Text>
 
-                        <Text className="text-slate-400 text-xs font-bold uppercase tracking-widest mb-6">
-                            TUR {roundLabel}
-                        </Text>
+                        <Text className="text-slate-400 text-xs font-bold uppercase tracking-widest mb-6">TUR {roundLabel}</Text>
 
                         <View className="w-full h-[1px] bg-slate-100 mb-6" />
 
                         <Text className="text-slate-500 font-bold mb-8 text-center text-lg leading-6">
                             Harika iş çıkardınız!{"\n"}Şimdi sıra{" "}
-                            <Text className="text-fuchsia-700 font-black">{activeTeamName}</Text>{" "}
-                            ekibinde.
+                            <Text className="text-fuchsia-700 font-black">{activeTeamName}</Text> ekibinde.
                         </Text>
 
                         <TouchableOpacity
