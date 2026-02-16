@@ -20,7 +20,7 @@
         "backgroundColor": "#ffffff"
       },
       "package": "com.arcodiba.tabuapp",
-      "versionCode": 6
+      "versionCode": 7
     },
     "web": {
       "favicon": "assets/favicon.png"
@@ -33,7 +33,11 @@
     "owner": "arcodiba",
     "plugins": [
       "expo-font",
-      "expo-asset"
+      "expo-asset",
+      "react-native-google-mobile-ads"
     ]
+  },
+  "react-native-google-mobile-ads": {
+    "android_app_id": "ca-app-pub-7780845735147349~4057164341"
   }
 }

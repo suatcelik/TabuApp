@@ -211,7 +211,7 @@ export default function SettingsScreen({ navigation }) {
                 {/* Kaydet Butonu */}
                 <View className="p-6 bg-slate-50">
                     <TouchableOpacity
-                        className="bg-indigo-600 py-6 rounded-3xl shadow-xl active:scale-95"
+                        className="bg-fuchsia-700 py-6 rounded-3xl shadow-xl active:scale-95"
                         onPress={handleSave}
                     >
                         <Text className="text-white text-center font-black text-xl uppercase tracking-widest">

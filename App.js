@@ -8,6 +8,7 @@ import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 
 import ErrorBoundary from "./src/components/ErrorBoundary";
+import { initAds } from "./src/services/adService"; // ✅ eklendi
 
 // Ekranların import yolları
 import HomeScreen from "./src/screens/HomeScreen";
@@ -20,6 +21,11 @@ const Stack = createNativeStackNavigator();
 export default function App() {
   // ✅ ErrorBoundary reset için: komple app'i yeniden mount eder
   const [appKey, setAppKey] = React.useState(0);
+
+  // ✅ Ads SDK init + preload
+  React.useEffect(() => {
+    initAds();
+  }, []);
 
   return (
     <ErrorBoundary onReset={() => setAppKey((k) => k + 1)}>
