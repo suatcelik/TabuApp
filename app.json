@@ -34,10 +34,12 @@
     "plugins": [
       "expo-font",
       "expo-asset",
-      "react-native-google-mobile-ads"
+      [
+        "react-native-google-mobile-ads",
+        {
+          "androidAppId": "ca-app-pub-7780845735147349~4057164341"
+        }
+      ]
     ]
-  },
-  "react-native-google-mobile-ads": {
-    "android_app_id": "ca-app-pub-7780845735147349~4057164341"
   }
 }
