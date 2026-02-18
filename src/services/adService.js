@@ -14,7 +14,8 @@ const SHOW_EVERY = 3; // Sonra her 3 maçta 1
 
 // 🔥 PROD ID
 const PROD_INTERSTITIAL_ID = "ca-app-pub-7780845735147349/8291922826";
-const FORCE_TEST_ADS = false;
+const FORCE_TEST_ADS = true;
+
 
 const AD_UNIT_ID = FORCE_TEST_ADS
   ? TestIds.INTERSTITIAL
