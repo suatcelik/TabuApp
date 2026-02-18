@@ -1,3 +1,4 @@
+// src/services/adService.js
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import mobileAds, {
   InterstitialAd,
@@ -14,7 +15,7 @@ const SHOW_EVERY = 3;
 
 // 🔥 PROD ID
 const PROD_INTERSTITIAL_ID = "ca-app-pub-7780845735147349/8291922826";
-const FORCE_TEST_ADS = false; // Testleri bitirip Production'a geçerken false yapın
+const FORCE_TEST_ADS = false;
 
 const AD_UNIT_ID = FORCE_TEST_ADS
   ? TestIds.INTERSTITIAL
@@ -28,10 +29,18 @@ let isLoading = false;
 let isShowing = false;
 let initialized = false;
 
-// Kapanınca çalışacak tek seferlik fonksiyon (Navigasyon için)
+// ✅ PERFORMANS DÜZELTMESİ:
+// Başlangıç değeri 'null' olmalı. Böylece 'false' (ücretsiz üye) durumu ile
+// 'henüz kontrol edilmedi' durumu birbirinden ayrılır.
+let isPremiumCache = null;
+
+// Kapanınca çalışacak tek seferlik fonksiyon
 let onAdClosedAction = null;
 
 export async function initAds() {
+  // ✅ Cache kontrolü ile başla, Premium ise hiç SDK başlatma
+  if (await isPremium()) return;
+
   if (initialized) return;
   initialized = true;
   try {
@@ -43,6 +52,9 @@ export async function initAds() {
 }
 
 export function preloadInterstitial() {
+  // ✅ BELLEKTEN KONTROL: Cache true ise (Premium) yüklemeyi durdur
+  if (isPremiumCache === true) return;
+
   if (isLoaded || isLoading || isShowing) return;
 
   try {
@@ -61,13 +73,11 @@ export function preloadInterstitial() {
         isLoading = false;
         isShowing = false;
 
-        // ✅ Eğer bir aksiyon tanımlıysa (Navigasyon gibi) çalıştır
         if (onAdClosedAction) {
           onAdClosedAction();
           onAdClosedAction = null;
         }
 
-        // Bir sonraki için hemen yükle
         preloadInterstitial();
       });
 
@@ -87,80 +97,80 @@ export function preloadInterstitial() {
   }
 }
 
-// ✅ YENİ: Result ekranı açılır açılmaz çağrılacak.
-// Sayaçları kontrol eder, reklam sırası geldiyse ve yüklü değilse yüklemeyi zorlar.
 export async function prepareNextGameAd() {
   if (await isPremium()) return;
 
   const totalRaw = await AsyncStorage.getItem(TOTAL_GAMES_KEY);
   const total = Number(totalRaw || 0);
 
-  // Henüz ücretsiz oyunlardaysa veya reklam loaded ise işlem yapma
   if (total < FREE_GAMES) return;
 
   const counterRaw = await AsyncStorage.getItem(AD_COUNTER_KEY);
   const counter = Number(counterRaw || 0);
 
-  // Sıradaki oyun reklamlı olacaksa ve reklam hazır değilse yükle
   if (counter + 1 >= SHOW_EVERY && !isLoaded && !isLoading) {
     console.log("Reklam sırası yaklaştı, önden yükleniyor...");
     preloadInterstitial();
   }
 }
 
-// ✅ YENİ: Butona basılınca çağrılacak.
-// true dönerse UI bekler (reklam girecek), false dönerse direkt geçiş yapılır.
 export async function checkAndShowAd(onClosed) {
+  // Burası artık diske gitmez, direkt RAM'den okur (HIZLI)
   if (await isPremium()) return false;
 
-  // 1) Toplam oyun sayısını güncelle
   const totalRaw = await AsyncStorage.getItem(TOTAL_GAMES_KEY);
   const total = Number(totalRaw || 0) + 1;
   await AsyncStorage.setItem(TOTAL_GAMES_KEY, String(total));
 
   if (total <= FREE_GAMES) {
-    preloadInterstitial(); // Arka planda hazırla
-    return false; // Reklam gösterme
+    preloadInterstitial();
+    return false;
   }
 
-  // 2) Sayaç kontrolü
   const counterRaw = await AsyncStorage.getItem(AD_COUNTER_KEY);
   let counter = Number(counterRaw || 0) + 1;
 
   if (counter >= SHOW_EVERY) {
-    // Reklam zamanı!
     await AsyncStorage.setItem(AD_COUNTER_KEY, "0");
 
     if (isLoaded && interstitial) {
       isShowing = true;
-      onAdClosedAction = onClosed; // Kapanınca ne yapacağını kaydet
+      onAdClosedAction = onClosed;
       try {
         interstitial.show();
-        return true; // Reklam gösterildi, bekle
+        return true;
       } catch (e) {
         isShowing = false;
         preloadInterstitial();
-        return false; // Hata oldu, bekleme yapma
+        return false;
       }
     } else {
-      // Reklam sırasıydı ama yüklenememiş, pas geç
       preloadInterstitial();
       return false;
     }
   } else {
-    // Henüz sıra gelmedi
     await AsyncStorage.setItem(AD_COUNTER_KEY, String(counter));
     return false;
   }
 }
 
+// ✅ KRİTİK GÜNCELLEME BURADA YAPILDI
 async function isPremium() {
+  // Eğer cache 'null' değilse (yani true VEYA false ise) direkt döndür.
+  // Bu sayede ÜCRETSİZ kullanıcılar için de AsyncStorage'a gitmez.
+  if (isPremiumCache !== null) return isPremiumCache;
+
   try {
     const v = await AsyncStorage.getItem(PREMIUM_KEY);
-    return v === "true";
-  } catch { return false; }
+    // Değeri okuyup cache'e yazıyoruz
+    isPremiumCache = (v === "true");
+    return isPremiumCache;
+  } catch {
+    return false;
+  }
 }
 
 export async function setPremium(value) {
+  isPremiumCache = !!value; // Cache'i anında güncelle
   await AsyncStorage.setItem(PREMIUM_KEY, value ? "true" : "false");
 }

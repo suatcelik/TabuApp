@@ -64,7 +64,7 @@ export default function GameScreen({ navigation }) {
   const [state, dispatch] = useReducer(gameReducer, initialState);
   const [fetchError, setFetchError] = useState(null);
 
-  // Store Bağlantısı (loadSettings KALDIRILDI)
+  // Store Bağlantısı
   const settings = useGameStore((s) => s.settings);
   const setFinalScores = useGameStore((s) => s.setFinalScores);
 
@@ -94,6 +94,12 @@ export default function GameScreen({ navigation }) {
     try {
       tickSlowPlayer.seekTo?.(0);
       tickSlowPlayer.play();
+    } catch (_) { }
+  };
+
+  const stopTickSlow = () => {
+    try {
+      if (tickSlowPlayer.playing) tickSlowPlayer.pause();
     } catch (_) { }
   };
 
@@ -143,7 +149,7 @@ export default function GameScreen({ navigation }) {
     });
   }, [settings]);
 
-  // 3. GERİ TUŞU KORUMASI (DÜZELTİLDİ: subscription.remove kullanıldı)
+  // 3. GERİ TUŞU KORUMASI (DÜZELTİLDİ: Oyunun devam etme sorunu çözüldü)
   useEffect(() => {
     const onBackPress = () => {
       if (!state.isGameOver) {
@@ -155,16 +161,33 @@ export default function GameScreen({ navigation }) {
             {
               text: "Çık",
               style: "destructive",
-              onPress: () => navigation.navigate("Home")
+              onPress: () => {
+                // ✅ KRİTİK DÜZELTME: Timer'ı manuel olarak hemen durdur
+                if (intervalRef.current) {
+                  clearInterval(intervalRef.current);
+                  intervalRef.current = null;
+                }
+
+                // ✅ KRİTİK DÜZELTME: Sesleri durdur
+                stopTickSlow();
+
+                // ✅ KRİTİK DÜZELTME: Stack'i temizleyerek çık (popToTop)
+                // navigate("Home") yerine popToTop kullanarak ekranı öldürüyoruz
+                if (navigation.canGoBack()) {
+                  navigation.popToTop();
+                } else {
+                  navigation.replace("Home");
+                }
+              }
             }
           ]
         );
         return true;
       }
+      // Oyun bittiyse normal geri çalışsın
       return false;
     };
 
-    // ✅ YENİ YAPI: removeEventListener yerine subscription.remove()
     const subscription = BackHandler.addEventListener("hardwareBackPress", onBackPress);
 
     return () => {
@@ -180,8 +203,10 @@ export default function GameScreen({ navigation }) {
       return;
     }
 
+    // Varsa temizle
     if (intervalRef.current) clearInterval(intervalRef.current);
 
+    // Yeni başlat
     intervalRef.current = setInterval(() => {
       dispatch({ type: "TICK" });
     }, 1000);
@@ -226,6 +251,10 @@ export default function GameScreen({ navigation }) {
     if (!state.isGameOver) return;
 
     let cancelled = false;
+
+    // Timer'ı durdur
+    if (intervalRef.current) clearInterval(intervalRef.current);
+    intervalRef.current = null;
 
     const navTimer = setTimeout(() => {
       if (cancelled) return;

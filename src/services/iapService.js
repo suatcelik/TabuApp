@@ -13,10 +13,10 @@ let purchaseErrorSub = null;
 // Init guard
 let iapInited = false;
 
-// Purchase event tekrarına karşı (Android bazen aynı purchase'ı tekrar ateşleyebilir)
+// Purchase event tekrarına karşı
 const processedTokens = new Set();
 
-// Basit concurrency guard (çoklu satın alma tıklaması)
+// Basit concurrency guard
 let busy = false;
 
 // Local cache (UX için)
@@ -39,18 +39,16 @@ export async function initIAP() {
     try {
         const ok = await RNIap.initConnection();
 
-        // Android için: pending cache temizle (bazı cihazlarda gerekli)
+        // Android için: pending cache temizle
         try {
-            // Yeni isim
             await RNIap.flushFailedPurchasesCachedAsPendingAndroid();
         } catch {
-            // Bazı sürümlerde opsiyonel / farklı olabilir
             try {
                 await RNIap.flushFailedPurchasesCachedAsPendingAndroid?.();
             } catch { }
         }
 
-        // ✅ Listener'lar (en kritik stabilite parçası)
+        // ✅ Listener'lar
         purchaseUpdateSub = RNIap.purchaseUpdatedListener(async (purchase) => {
             try {
                 if (!purchase) return;
@@ -65,18 +63,16 @@ export async function initIAP() {
 
                 const productId = purchase.productId;
 
-                // Sadece remove_ads ile ilgileniyoruz
-                if (productId === "remove_ads") {
+                // ✅ DÜZELTME YAPILDI: "remove_ads" yerine "tabu_reklamsiz" kontrol ediliyor.
+                if (productId === "tabu_reklamsiz") {
                     await setLocalRemoveAds(true);
                 }
 
-                // ✅ Finish / ACK şart
+                // ✅ Finish / ACK
                 try {
-                    // v14 tarzı
                     await RNIap.finishTransaction({ purchase, isConsumable: false });
                 } catch (e1) {
                     try {
-                        // bazı imzalarda böyle
                         await RNIap.finishTransaction(purchase, false);
                     } catch (e2) {
                         console.log("[RN-IAP] finishTransaction failed:", e2?.message || e2);
@@ -121,14 +117,11 @@ export async function getProducts() {
     try {
         if (!iapInited) await initIAP();
 
-        // v14.7 önerilen
         if (typeof RNIap.fetchProducts === "function") {
             const res = await RNIap.fetchProducts({ skus: PRODUCT_IDS, type: "in-app" });
-            // bazı sürümlerde { products: [...] } döner
             return res?.products ?? res ?? [];
         }
 
-        // fallback (eski)
         const products = await RNIap.getProducts({ skus: PRODUCT_IDS });
         return products || [];
     } catch (e) {
@@ -137,14 +130,13 @@ export async function getProducts() {
     }
 }
 
-// Satın alma başlat (işin “tamamlanması” listener ile olur)
 export async function buyRemoveAds() {
     if (busy) return false;
     busy = true;
 
     const sku = PRODUCT_IDS?.[0]; // "tabu_reklamsiz"
     if (!sku) {
-        console.log("[RN-IAP] SKU missing (PRODUCT_IDS empty)");
+        console.log("[RN-IAP] SKU missing");
         busy = false;
         return false;
     }
@@ -154,15 +146,12 @@ export async function buyRemoveAds() {
 
         await RNIap.requestPurchase({
             request: {
-                // iOS kullanmıyorsan bile eklemek zarar vermez
                 apple: { sku },
-                // ✅ Android Google Billing: skus array istiyor
                 google: { skus: [sku] },
             },
             type: "in-app",
         });
 
-        // Satın alma tamamlanınca listener zaten setLocalRemoveAds(true) yapacak
         return true;
     } catch (e) {
         console.log("[RN-IAP] buyRemoveAds error:", e?.message || e);
@@ -172,7 +161,6 @@ export async function buyRemoveAds() {
     }
 }
 
-// Restore / doğrulama
 export async function restoreRemoveAds() {
     try {
         if (!iapInited) await initIAP();
@@ -186,8 +174,6 @@ export async function restoreRemoveAds() {
         return !!hasRemoveAds;
     } catch (e) {
         console.log("[RN-IAP] restoreRemoveAds error:", e?.message || e);
-
-        // Restore patlarsa local'a düş (UX kurtarma)
         const local = await getLocalRemoveAds();
         await setLocalRemoveAds(!!local);
         return !!local;
