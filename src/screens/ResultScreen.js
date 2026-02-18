@@ -15,8 +15,7 @@ import { useAudioPlayer } from "expo-audio";
 import {
   maybeShowInterstitialAfterGame,
   preloadInterstitial,
-  waitForAdLoaded,
-} from "../services/adService"; // ✅ güncellendi
+} from "../services/adService";
 
 export default function ResultScreen({ navigation }) {
   const finalScores = useGameStore((s) => s.finalScores);
@@ -56,22 +55,18 @@ export default function ResultScreen({ navigation }) {
     }
   }, [winnerKey]);
 
-  const handleNewGame = async () => {
-    try {
-      // ✅ butona basınca bir kez daha preload tetikle
-      preloadInterstitial();
-
-      // ✅ max 1200ms bekle: yüklendiyse gösterme şansı artsın
-      await waitForAdLoaded(1200);
-
-      // ✅ strateji: ilk 3 oyun reklamsız + sonra 3 oyunda 1
-      await maybeShowInterstitialAfterGame();
-    } catch (_) {
-      // hata olsa bile akış devam
-    }
-
+  const handleNewGame = () => {
+    // ✅ UI akışını hiç bekletme
     resetGame();
     navigation.navigate("Home");
+
+    // ✅ Reklamı UI yerleştikten sonra dene
+    InteractionManager.runAfterInteractions(() => {
+      try {
+        preloadInterstitial();
+        maybeShowInterstitialAfterGame(); // hazırsa gösterir, değilse geçer
+      } catch (_) { }
+    });
   };
 
   return (
@@ -80,10 +75,10 @@ export default function ResultScreen({ navigation }) {
 
       {showConfetti && (
         <ConfettiCannon
-          count={120} // ✅ daha hafif
+          count={120}
           origin={{ x: -10, y: 0 }}
           fadeOut={true}
-          fallSpeed={2800} // ✅ biraz daha hafif
+          fallSpeed={2800}
         />
       )}
 
@@ -111,10 +106,16 @@ export default function ResultScreen({ navigation }) {
         <View className="w-full bg-white/10 p-8 rounded-[40px] border border-white/20 shadow-xl mb-12">
           <View className="flex-row justify-around items-center">
             <View className="items-center flex-1">
-              <Text className="text-white font-bold mb-2 uppercase text-base text-center" numberOfLines={1}>
+              <Text
+                className="text-white font-bold mb-2 uppercase text-base text-center"
+                numberOfLines={1}
+              >
                 {settings?.teamAName}
               </Text>
-              <Text className={`text-6xl font-black ${winnerKey === "A" ? "text-amber-400" : "text-white"}`}>
+              <Text
+                className={`text-6xl font-black ${winnerKey === "A" ? "text-amber-400" : "text-white"
+                  }`}
+              >
                 {scoreA}
               </Text>
             </View>
@@ -122,10 +123,16 @@ export default function ResultScreen({ navigation }) {
             <View className="h-16 w-[1px] bg-white/20 mx-2" />
 
             <View className="items-center flex-1">
-              <Text className="text-white font-bold mb-2 uppercase text-base text-center" numberOfLines={1}>
+              <Text
+                className="text-white font-bold mb-2 uppercase text-base text-center"
+                numberOfLines={1}
+              >
                 {settings?.teamBName}
               </Text>
-              <Text className={`text-6xl font-black ${winnerKey === "B" ? "text-amber-400" : "text-white"}`}>
+              <Text
+                className={`text-6xl font-black ${winnerKey === "B" ? "text-amber-400" : "text-white"
+                  }`}
+              >
                 {scoreB}
               </Text>
             </View>
