@@ -20,7 +20,7 @@
         "backgroundColor": "#ffffff"
       },
       "package": "com.arcodiba.tabuapp",
-      "versionCode": 18,
+      "versionCode": 19,
       "permissions": [
         "BILLING"
       ],
