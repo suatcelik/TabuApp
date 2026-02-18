@@ -3,16 +3,25 @@ import {
     View,
     Text,
     TouchableOpacity,
-    Switch,
     StatusBar,
     TextInput,
     KeyboardAvoidingView,
     Platform,
     ScrollView,
+    Alert,
+    ActivityIndicator,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { Ionicons, MaterialIcons } from "@expo/vector-icons";
+import { Ionicons } from "@expo/vector-icons";
 import useGameStore from "../store/useGameStore";
+
+// ✅ IAP
+import {
+    buyRemoveAds,
+    restoreRemoveAds,
+    getLocalRemoveAds,
+    getProducts,
+} from "../services/iapService";
 
 export default function SettingsScreen({ navigation }) {
     const settings = useGameStore((s) => s.settings);
@@ -27,6 +36,11 @@ export default function SettingsScreen({ navigation }) {
     const [roundsPerTeamText, setRoundsPerTeamText] = useState(
         String(settings?.roundsPerTeam ?? 4)
     );
+
+    // ✅ Remove Ads UI state
+    const [removeAdsEnabled, setRemoveAdsEnabled] = useState(false);
+    const [removeAdsPriceText, setRemoveAdsPriceText] = useState("");
+    const [iapBusy, setIapBusy] = useState(false);
 
     useEffect(() => {
         loadSettings();
@@ -45,12 +59,36 @@ export default function SettingsScreen({ navigation }) {
         setRoundsPerTeamText(String(settings?.roundsPerTeam ?? 4));
     }, [settings?.roundsPerTeam]);
 
+    // ✅ Remove Ads: local durum + fiyat çek
+    useEffect(() => {
+        let alive = true;
+        (async () => {
+            try {
+                const local = await getLocalRemoveAds();
+                if (!alive) return;
+                setRemoveAdsEnabled(!!local);
+            } catch { }
+
+            try {
+                const products = await getProducts();
+                const p = products?.find((x) => x.productId === "remove_ads");
+                const price = p?.localizedPrice || p?.price || "";
+                if (!alive) return;
+                setRemoveAdsPriceText(price ? ` (${price})` : "");
+            } catch {
+                // fiyat çekilemezse boş bırak
+            }
+        })();
+
+        return () => {
+            alive = false;
+        };
+    }, []);
+
     const handleSave = () => {
         // Blur tetiklenmemiş olabilir diye son kez sanitize edelim:
         sanitizeAndCommit("duration", durationText, 15, 300, setDurationText);
         sanitizeAndCommit("maxPass", maxPassText, 0, 30, setMaxPassText);
-
-        // ✅ YENİ
         sanitizeAndCommit("roundsPerTeam", roundsPerTeamText, 1, 30, setRoundsPerTeamText);
 
         navigation.goBack();
@@ -76,6 +114,58 @@ export default function SettingsScreen({ navigation }) {
 
         setter(String(clamped));
         updateField(field, clamped);
+    };
+
+    // ✅ IAP handlers
+    const onBuyRemoveAds = async () => {
+        if (iapBusy || removeAdsEnabled) return;
+
+        setIapBusy(true);
+        try {
+            const ok = await buyRemoveAds();
+            if (!ok) {
+                Alert.alert("Satın alma başlatılamadı", "Lütfen tekrar deneyin.");
+                return;
+            }
+
+            // Satın alma listener ile tamamlanır; yine de local ile UI'ı güncelleyelim
+            const local = await getLocalRemoveAds();
+            setRemoveAdsEnabled(!!local);
+
+            if (local) {
+                Alert.alert("Başarılı ✅", "Reklamlar kaldırıldı.");
+            } else {
+                Alert.alert(
+                    "Bilgi",
+                    "Satın alma işlemi tamamlanınca reklamlar otomatik kapanır. Eğer kapanmazsa 'Geri Yükle' yapabilirsin."
+                );
+            }
+        } catch (e) {
+            Alert.alert("Hata", e?.message || "Satın alma sırasında bir hata oluştu.");
+        } finally {
+            setIapBusy(false);
+        }
+    };
+
+    const onRestoreRemoveAds = async () => {
+        if (iapBusy) return;
+
+        setIapBusy(true);
+        try {
+            const owns = await restoreRemoveAds();
+            setRemoveAdsEnabled(!!owns);
+
+            Alert.alert(
+                owns ? "Geri Yüklendi ✅" : "Bulunamadı",
+                owns
+                    ? "Reklamlar kaldırıldı."
+                    : "Bu hesapta 'Reklamları Kaldır' satın alımı bulunamadı."
+            );
+        } catch (e) {
+            Alert.alert("Hata", e?.message || "Geri yükleme sırasında bir hata oluştu.");
+        } finally {
+            setIapBusy(false);
+        }
     };
 
     return (
@@ -153,7 +243,7 @@ export default function SettingsScreen({ navigation }) {
                             </View>
                         </View>
 
-                        {/* ✅ YENİ: Tur Sayısı */}
+                        {/* Tur Sayısı */}
                         <View className="gap-4 mb-6">
                             <Text className="text-slate-500 font-bold uppercase tracking-widest text-xs ml-8">
                                 Tur Sayısı (Takım Başına)
@@ -203,10 +293,65 @@ export default function SettingsScreen({ navigation }) {
                             </View>
                         </View>
 
-                        {/* Titreşim Kontrolü */}
-                        {/* ... senin devam eden titreşim kısmın burada aynı kalabilir ... */}
+                        {/* ✅ PREMIUM / REMOVE ADS */}
+                        <View className="gap-4 mt-6">
+                            <Text className="text-slate-500 font-bold uppercase tracking-widest text-xs ml-8">
+                                Premium
+                            </Text>
 
-                        {/* ✅ YASAL / GİZLİLİK POLİTİKASI (EKLENDİ) */}
+                            <View className="bg-white p-5 rounded-[35px] border border-slate-100 shadow-sm">
+                                <View className="flex-row items-center justify-between">
+                                    <View className="flex-row items-center">
+                                        <Ionicons name="diamond" size={22} color="#f59e0b" />
+                                        <Text className="ml-3 text-slate-800 font-extrabold">
+                                            Reklamları Kaldır
+                                        </Text>
+                                    </View>
+
+                                    <View className="flex-row items-center">
+                                        <Text className={`mr-2 font-black ${removeAdsEnabled ? "text-emerald-600" : "text-slate-400"}`}>
+                                            {removeAdsEnabled ? "AKTİF" : "PASİF"}
+                                        </Text>
+                                        {iapBusy ? <ActivityIndicator /> : null}
+                                    </View>
+                                </View>
+
+                                <Text className="text-slate-400 text-xs mt-2 ml-1">
+                                    Satın alınca tüm interstitial reklamlar kapanır.{removeAdsPriceText}
+                                </Text>
+
+                                <View className="flex-row gap-3 mt-4">
+                                    <TouchableOpacity
+                                        onPress={onBuyRemoveAds}
+                                        disabled={iapBusy || removeAdsEnabled}
+                                        activeOpacity={0.9}
+                                        className={`flex-1 py-4 rounded-2xl items-center justify-center ${iapBusy || removeAdsEnabled ? "bg-slate-200" : "bg-indigo-600"
+                                            }`}
+                                    >
+                                        <Text className={`font-black uppercase tracking-widest ${iapBusy || removeAdsEnabled ? "text-slate-500" : "text-white"
+                                            }`}>
+                                            {removeAdsEnabled ? "Satın Alındı" : `Satın Al${removeAdsPriceText}`}
+                                        </Text>
+                                    </TouchableOpacity>
+
+                                    <TouchableOpacity
+                                        onPress={onRestoreRemoveAds}
+                                        disabled={iapBusy}
+                                        activeOpacity={0.9}
+                                        className={`py-4 px-4 rounded-2xl items-center justify-center ${iapBusy ? "bg-slate-200" : "bg-slate-800"
+                                            }`}
+                                    >
+                                        <Ionicons name="refresh" size={20} color={iapBusy ? "#64748b" : "white"} />
+                                    </TouchableOpacity>
+                                </View>
+
+                                <Text className="text-slate-400 text-[11px] mt-2 ml-1">
+                                    Not: Hesap değiştirdiysen “Geri Yükle” ile tekrar aktif edebilirsin.
+                                </Text>
+                            </View>
+                        </View>
+
+                        {/* ✅ YASAL / GİZLİLİK POLİTİKASI */}
                         <View className="gap-4 mt-6">
                             <Text className="text-slate-500 font-bold uppercase tracking-widest text-xs ml-8">
                                 Yasal

@@ -1,13 +1,25 @@
 // src/services/iapService.js
 import * as RNIap from "react-native-iap";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { setPremium } from "./adService";
 
 const REMOVE_ADS_KEY = "REMOVE_ADS_V1";
+export const PRODUCT_IDS = ["tabu_reklamsiz"];
 
-// Google Play product id (Play Console’daki ile aynı olmalı)
-export const PRODUCT_IDS = ["remove_ads"];
+// Listener referansları
+let purchaseUpdateSub = null;
+let purchaseErrorSub = null;
 
-// Local cache (UX için). Asıl doğrulama restore ile yapılır.
+// Init guard
+let iapInited = false;
+
+// Purchase event tekrarına karşı (Android bazen aynı purchase'ı tekrar ateşleyebilir)
+const processedTokens = new Set();
+
+// Basit concurrency guard (çoklu satın alma tıklaması)
+let busy = false;
+
+// Local cache (UX için)
 export async function getLocalRemoveAds() {
     const v = await AsyncStorage.getItem(REMOVE_ADS_KEY);
     return v === "1";
@@ -15,48 +27,169 @@ export async function getLocalRemoveAds() {
 
 export async function setLocalRemoveAds(enabled) {
     await AsyncStorage.setItem(REMOVE_ADS_KEY, enabled ? "1" : "0");
+    // ✅ Reklam tarafını da senkronla
+    try {
+        await setPremium(!!enabled);
+    } catch { }
 }
 
 export async function initIAP() {
-    await RNIap.initConnection();
-    // Android için güvenli: cache temizle (bazı cihazlarda pending purchase sorunu)
+    if (iapInited) return true;
+
     try {
-        await RNIap.flushFailedPurchasesCachedAsPendingAndroid?.();
-    } catch { }
+        const ok = await RNIap.initConnection();
+
+        // Android için: pending cache temizle (bazı cihazlarda gerekli)
+        try {
+            // Yeni isim
+            await RNIap.flushFailedPurchasesCachedAsPendingAndroid();
+        } catch {
+            // Bazı sürümlerde opsiyonel / farklı olabilir
+            try {
+                await RNIap.flushFailedPurchasesCachedAsPendingAndroid?.();
+            } catch { }
+        }
+
+        // ✅ Listener'lar (en kritik stabilite parçası)
+        purchaseUpdateSub = RNIap.purchaseUpdatedListener(async (purchase) => {
+            try {
+                if (!purchase) return;
+
+                const token =
+                    purchase.purchaseToken ||
+                    purchase.transactionId ||
+                    purchase.originalTransactionIdentifierIOS;
+
+                if (token && processedTokens.has(token)) return;
+                if (token) processedTokens.add(token);
+
+                const productId = purchase.productId;
+
+                // Sadece remove_ads ile ilgileniyoruz
+                if (productId === "remove_ads") {
+                    await setLocalRemoveAds(true);
+                }
+
+                // ✅ Finish / ACK şart
+                try {
+                    // v14 tarzı
+                    await RNIap.finishTransaction({ purchase, isConsumable: false });
+                } catch (e1) {
+                    try {
+                        // bazı imzalarda böyle
+                        await RNIap.finishTransaction(purchase, false);
+                    } catch (e2) {
+                        console.log("[RN-IAP] finishTransaction failed:", e2?.message || e2);
+                    }
+                }
+            } catch (e) {
+                console.log("[RN-IAP] purchaseUpdatedListener error:", e?.message || e);
+            }
+        });
+
+        purchaseErrorSub = RNIap.purchaseErrorListener((err) => {
+            console.log("[RN-IAP] purchaseErrorListener:", err?.message || err);
+        });
+
+        iapInited = true;
+        return ok;
+    } catch (e) {
+        console.log("[RN-IAP] initIAP error:", e?.message || e);
+        iapInited = false;
+        return false;
+    }
 }
 
 export async function endIAP() {
     try {
+        purchaseUpdateSub?.remove?.();
+        purchaseErrorSub?.remove?.();
+    } catch { }
+
+    purchaseUpdateSub = null;
+    purchaseErrorSub = null;
+    processedTokens.clear();
+
+    try {
         await RNIap.endConnection();
     } catch { }
+
+    iapInited = false;
 }
 
-// Ürünleri çek (fiyat vs. UI’de göstermek istersen)
 export async function getProducts() {
-    return await RNIap.getProducts({ skus: PRODUCT_IDS });
+    try {
+        if (!iapInited) await initIAP();
+
+        // v14.7 önerilen
+        if (typeof RNIap.fetchProducts === "function") {
+            const res = await RNIap.fetchProducts({ skus: PRODUCT_IDS, type: "in-app" });
+            // bazı sürümlerde { products: [...] } döner
+            return res?.products ?? res ?? [];
+        }
+
+        // fallback (eski)
+        const products = await RNIap.getProducts({ skus: PRODUCT_IDS });
+        return products || [];
+    } catch (e) {
+        console.log("[RN-IAP] getProducts error:", e?.message || e);
+        return [];
+    }
 }
 
-// Satın alma başlat
+// Satın alma başlat (işin “tamamlanması” listener ile olur)
 export async function buyRemoveAds() {
-    const purchase = await RNIap.requestPurchase({ sku: "remove_ads" });
+    if (busy) return false;
+    busy = true;
 
-    // Purchase tamamlandıysa, Android’de acknowledge/finish şart
-    // react-native-iap: finishTransaction
-    await RNIap.finishTransaction({ purchase, isConsumable: false });
+    const sku = PRODUCT_IDS?.[0]; // "tabu_reklamsiz"
+    if (!sku) {
+        console.log("[RN-IAP] SKU missing (PRODUCT_IDS empty)");
+        busy = false;
+        return false;
+    }
 
-    // Local flag (UX)
-    await setLocalRemoveAds(true);
+    try {
+        if (!iapInited) await initIAP();
 
-    return purchase;
+        await RNIap.requestPurchase({
+            request: {
+                // iOS kullanmıyorsan bile eklemek zarar vermez
+                apple: { sku },
+                // ✅ Android Google Billing: skus array istiyor
+                google: { skus: [sku] },
+            },
+            type: "in-app",
+        });
+
+        // Satın alma tamamlanınca listener zaten setLocalRemoveAds(true) yapacak
+        return true;
+    } catch (e) {
+        console.log("[RN-IAP] buyRemoveAds error:", e?.message || e);
+        return false;
+    } finally {
+        busy = false;
+    }
 }
 
-// Restore / doğrulama (en kritik kısım)
+// Restore / doğrulama
 export async function restoreRemoveAds() {
-    // Google tarafındaki “sahip olunan satın alımları” getirir
-    const purchases = await RNIap.getAvailablePurchases();
+    try {
+        if (!iapInited) await initIAP();
 
-    const hasRemoveAds = purchases?.some((p) => p.productId === "remove_ads");
+        const purchases = await RNIap.getAvailablePurchases();
+        const hasRemoveAds = (purchases || []).some(
+            (p) => p.productId === "tabu_reklamsiz"
+        );
 
-    await setLocalRemoveAds(!!hasRemoveAds);
-    return !!hasRemoveAds;
+        await setLocalRemoveAds(!!hasRemoveAds);
+        return !!hasRemoveAds;
+    } catch (e) {
+        console.log("[RN-IAP] restoreRemoveAds error:", e?.message || e);
+
+        // Restore patlarsa local'a düş (UX kurtarma)
+        const local = await getLocalRemoveAds();
+        await setLocalRemoveAds(!!local);
+        return !!local;
+    }
 }
