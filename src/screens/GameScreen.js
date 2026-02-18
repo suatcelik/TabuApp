@@ -1,4 +1,3 @@
-// src/screens/GameScreen.js
 import React, { useEffect, useReducer, useRef, useState, useCallback } from "react";
 import {
   View,
@@ -8,6 +7,8 @@ import {
   Modal,
   StatusBar,
   InteractionManager,
+  BackHandler, // ✅ Geri tuşu kontrolü için eklendi
+  Alert,       // ✅ Çıkış onayı için eklendi
 } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Ionicons } from "@expo/vector-icons";
@@ -63,12 +64,11 @@ export default function GameScreen({ navigation }) {
   const [state, dispatch] = useReducer(gameReducer, initialState);
   const [fetchError, setFetchError] = useState(null);
 
-  // ✅ Selector ile al (re-render azaltır)
+  // ✅ Selector ile al (Zustand Persist sayesinde loadSettings'e gerek yok)
   const settings = useGameStore((s) => s.settings);
-  const loadSettings = useGameStore((s) => s.loadSettings);
   const setFinalScores = useGameStore((s) => s.setFinalScores);
 
-  // ✅ expo-audio: sesleri bir kez yükler
+  // ✅ Ses Efektleri
   const successPlayer = useAudioPlayer(require("../../assets/success.mp3"));
   const errorPlayer = useAudioPlayer(require("../../assets/error.mp3"));
   const tickSlowPlayer = useAudioPlayer(require("../../assets/tick_slow.mp3"));
@@ -82,28 +82,26 @@ export default function GameScreen({ navigation }) {
         errorPlayer.seekTo?.(0);
         errorPlayer.play();
       }
-    } catch (_) {}
+    } catch (_) { }
   };
 
   const playTickSlow = () => {
     try {
       tickSlowPlayer.seekTo?.(0);
       tickSlowPlayer.play();
-    } catch (_) {}
+    } catch (_) { }
   };
 
-  // ✅ Interval güvenliği
+  // ✅ Interval referansı
   const intervalRef = useRef(null);
-
   // ✅ 10 saniyenin altına ilk kez düşünce 1 kere çalsın
   const hasPlayedTickRef = useRef(false);
 
-  // ✅ Offline-first kelime yükleme
+  // ✅ 1) Oyun Başlatma (Offline-First)
   const initGame = useCallback(async () => {
     try {
       setFetchError(null);
-
-      await loadSettings();
+      // Not: loadSettings() kaldırdık, çünkü store artık otomatik yükleniyor.
 
       const { words } = await loadWordsOfflineFirst(200);
 
@@ -114,24 +112,22 @@ export default function GameScreen({ navigation }) {
       dispatch({ type: "SET_WORDS", payload: shuffled });
       await AsyncStorage.setItem(LAST_FIRST_WORD_KEY, shuffled[0]?.targetWord || "");
     } catch (e) {
-      setFetchError("Bağlantı hatası. Tekrar dene.");
+      console.log("Game Init Error:", e);
+      setFetchError("Bağlantı hatası veya kelimeler yüklenemedi.");
       dispatch({ type: "SET_WORDS", payload: [] });
     }
-  }, [loadSettings]);
+  }, []);
 
-  // 1) Oyun hazırlığı
   useEffect(() => {
     initGame();
-
     return () => {
       if (intervalRef.current) clearInterval(intervalRef.current);
     };
   }, [initGame]);
 
-  // 2) Ayarlar yüklendiğinde reducer'ı güncelle
+  // ✅ 2) Ayarlar değişirse veya yüklenirse Reducer'ı güncelle
   useEffect(() => {
     if (!settings) return;
-
     dispatch({
       type: "INIT_SETTINGS",
       payload: {
@@ -140,9 +136,35 @@ export default function GameScreen({ navigation }) {
         roundsPerTeam: settings.roundsPerTeam,
       },
     });
-  }, [settings?.duration, settings?.maxPass, settings?.roundsPerTeam]);
+  }, [settings]); // settings objesi değişince çalışır
 
-  // 3) Timer
+  // ✅ 3) Android Geri Tuşu Koruması (YENİ)
+  useEffect(() => {
+    const onBackPress = () => {
+      // Oyun bitmediyse çıkış için onay iste
+      if (!state.isGameOver) {
+        Alert.alert(
+          "Oyundan Çık?",
+          "Oyun devam ediyor. Çıkarsanız ilerlemeniz kaybolacak.",
+          [
+            { text: "İptal", style: "cancel", onPress: () => { } },
+            {
+              text: "Çık",
+              style: "destructive",
+              onPress: () => navigation.navigate("Home")
+            }
+          ]
+        );
+        return true; // Sistemi engelle
+      }
+      return false; // Normal geri git
+    };
+
+    BackHandler.addEventListener("hardwareBackPress", onBackPress);
+    return () => BackHandler.removeEventListener("hardwareBackPress", onBackPress);
+  }, [state.isGameOver, navigation]);
+
+  // ✅ 4) Timer Döngüsü
   useEffect(() => {
     if (!state.isActive) {
       if (intervalRef.current) clearInterval(intervalRef.current);
@@ -162,29 +184,26 @@ export default function GameScreen({ navigation }) {
     };
   }, [state.isActive]);
 
-  // ✅ Süre 8 ve altına ilk kez düşünce 1 kere çal; süre bitince/reset ol
+  // ✅ 5) Son saniye sesi
   useEffect(() => {
     if (!state.isActive) {
       hasPlayedTickRef.current = false;
       return;
     }
-
     if (state.timeLeft <= 0) {
       hasPlayedTickRef.current = false;
       return;
     }
-
     if (state.timeLeft <= 8 && !hasPlayedTickRef.current) {
       hasPlayedTickRef.current = true;
       playTickSlow();
     }
   }, [state.isActive, state.timeLeft]);
 
-  // 4) Tur bitince
+  // ✅ 6) Tur Sonu Kontrolü
   useEffect(() => {
     if (state.timeLeft === 0 && state.isActive === false && !state.isGameOver) {
       const teamScore = state.activeTeam === "A" ? state.teamAScore : state.teamBScore;
-
       logRoundEnd(state.activeTeam, teamScore);
 
       dispatch({
@@ -196,46 +215,32 @@ export default function GameScreen({ navigation }) {
         },
       });
     }
-  }, [
-    state.timeLeft,
-    state.isActive,
-    state.isGameOver,
-    state.activeTeam,
-    state.teamAScore,
-    state.teamBScore,
-    settings?.duration,
-    settings?.maxPass,
-    settings?.roundsPerTeam,
-  ]);
+  }, [state.timeLeft, state.isActive, state.isGameOver, state.activeTeam, settings]);
 
-  // 5) Oyun tamamen bitince (✅ UI akışını hafifleten sürüm)
+  // ✅ 7) Oyun Bitti (Result Ekranına Geçiş)
   useEffect(() => {
     if (!state.isGameOver) return;
 
     let cancelled = false;
 
-    // ✅ Önce Result'a geç (UI akıcı kalsın)
+    // UI'ın oturması için hafif gecikme
     const navTimer = setTimeout(() => {
       if (cancelled) return;
       navigation?.replace?.("Result");
     }, 350);
 
-    // ✅ Ağ/IO işleri UI yerleşince çalışsın
     InteractionManager.runAfterInteractions(async () => {
       if (cancelled) return;
-
       try {
         const winnerScore =
           state.teamAScore > state.teamBScore ? state.teamAScore : state.teamBScore;
 
-        // skor kaydı (ağ)
-        try {
-          await saveScore("Player", winnerScore);
-        } catch (_) {}
+        // Firebase'e skor kaydet (sessizce)
+        saveScore("Player", winnerScore).catch(() => { });
 
-        // store'a yaz (hafif)
+        // Store'a kaydet (Result ekranı buradan okuyacak)
         setFinalScores({ A: state.teamAScore, B: state.teamBScore });
-      } catch (_) {}
+      } catch (_) { }
     });
 
     return () => {
@@ -244,7 +249,7 @@ export default function GameScreen({ navigation }) {
     };
   }, [state.isGameOver, state.teamAScore, state.teamBScore, navigation, setFinalScores]);
 
-  // 6) Aksiyonlar
+  // --- Aksiyonlar ---
   const onCorrect = () => {
     if (!state.isActive) return;
     dispatch({ type: "SUCCESS" });
@@ -267,19 +272,21 @@ export default function GameScreen({ navigation }) {
     dispatch({ type: "START_TURN" });
   };
 
-  // ✅ Loading
+  // --- Loading Ekranı ---
   if (state.loading && !state.words?.length && !fetchError) {
     return (
       <View className="flex-1 justify-center items-center bg-white">
         <ActivityIndicator size="large" color="#4f46e5" />
+        <Text className="text-slate-400 mt-4 font-bold">Kelimeler Hazırlanıyor...</Text>
       </View>
     );
   }
 
+  // --- Render Değişkenleri ---
   const currentWord = state.words?.[state.currentIndex];
   const activeTeamName = state.activeTeam === "A" ? settings?.teamAName : settings?.teamBName;
 
-  // ✅ Modalda göstermek için: önceki takım
+  // Modal için önceki takım bilgileri
   const prevTeam = state.activeTeam === "A" ? "B" : "A";
   const prevTeamName = prevTeam === "A" ? settings?.teamAName : settings?.teamBName;
   const prevTeamScore = prevTeam === "A" ? state.teamAScore : state.teamBScore;
@@ -298,6 +305,7 @@ export default function GameScreen({ navigation }) {
     <SafeAreaView className="flex-1 bg-slate-50">
       <StatusBar barStyle="dark-content" />
 
+      {/* Üst Bilgi Çubuğu */}
       <View className="flex-row justify-between items-center px-6 py-4 bg-white shadow-sm">
         <View className="items-center flex-1">
           <Text className="text-slate-400 text-[10px] font-bold uppercase">{activeTeamName}</Text>
@@ -322,14 +330,17 @@ export default function GameScreen({ navigation }) {
         </View>
       </View>
 
+      {/* Kart Alanı */}
       <View className="flex-1 justify-center px-8">
         <View className="bg-white rounded-[45px] shadow-2xl overflow-hidden border border-slate-100">
+          {/* Kelime Başlığı */}
           <View className={`${currentColor} py-10 items-center`}>
             <Text className={`${headerTextColor} text-4xl font-black uppercase tracking-tighter text-center px-4`}>
               {currentWord?.targetWord ?? "—"}
             </Text>
           </View>
 
+          {/* Yasaklı Kelimeler */}
           <View className="py-10 items-center">
             {(currentWord?.forbiddenWords ?? []).map((word, index) => (
               <View key={`${word}-${index}`} className="py-2 w-full items-center">
@@ -343,6 +354,7 @@ export default function GameScreen({ navigation }) {
         </View>
       </View>
 
+      {/* Butonlar */}
       <View className="flex-row px-6 pb-10 gap-4">
         <TouchableOpacity
           className="flex-1 bg-fuchsia-700 h-24 rounded-3xl items-center justify-center shadow-lg shadow-rose-200 active:scale-95"
@@ -372,6 +384,7 @@ export default function GameScreen({ navigation }) {
         </TouchableOpacity>
       </View>
 
+      {/* Hata Modalı */}
       <Modal visible={!!fetchError} transparent animationType="fade">
         <View className="flex-1 items-center justify-center bg-black/40 px-6">
           <View className="bg-white w-full rounded-3xl p-6">
@@ -384,7 +397,7 @@ export default function GameScreen({ navigation }) {
                 onPress={async () => {
                   try {
                     await clearWordsCache?.();
-                  } catch (_) {}
+                  } catch (_) { }
                   setFetchError(null);
                   initGame();
                 }}
@@ -394,15 +407,19 @@ export default function GameScreen({ navigation }) {
 
               <TouchableOpacity
                 className="flex-1 bg-cyan-700 h-12 rounded-2xl items-center justify-center"
-                onPress={() => setFetchError(null)}
+                onPress={() => {
+                  setFetchError(null);
+                  navigation.navigate("Home");
+                }}
               >
-                <Text className="text-white font-black">Kapat</Text>
+                <Text className="text-white font-black">Çıkış</Text>
               </TouchableOpacity>
             </View>
           </View>
         </View>
       </Modal>
 
+      {/* Tur Sonu Modalı */}
       <Modal
         visible={!state.isActive && !state.isGameOver && state.timeLeft > 0 && !fetchError}
         transparent

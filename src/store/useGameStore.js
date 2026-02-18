@@ -1,77 +1,57 @@
 import { create } from 'zustand';
+import { persist, createJSONStorage } from 'zustand/middleware';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-const SETTINGS_KEY = 'GAME_SETTINGS';
+const useGameStore = create(
+    persist(
+        (set, get) => ({
+            // --- AYARLAR (Otomatik Kaydedilir) ---
+            settings: {
+                duration: 60,
+                maxPass: 3,
+                vibration: true,
+                teamAName: 'Takım A',
+                teamBName: 'Takım B',
+                roundsPerTeam: 4, // Varsayılan tur sayısı
+            },
 
-const useGameStore = create((set, get) => ({
-    // --- AYARLAR (PERSIST) ---
-    settings: {
-        duration: 60,
-        maxPass: 3,
-        vibration: true,
-        teamAName: 'Takım A',
-        teamBName: 'Takım B',
+            // Ayarları güncelle (Otomatik olarak AsyncStorage'a yazar)
+            updateSettings: (newSettings) => {
+                set((state) => {
+                    // Gelen veriyi birleştir
+                    const merged = { ...state.settings, ...newSettings };
 
-        // ✅ YENİ: Takım başına tur sayısı (Toplam tur = 2 * roundsPerTeam)
-        roundsPerTeam: 4,
-    },
+                    // Güvenlik: roundsPerTeam sayısal ve en az 1 olmalı
+                    if (merged.roundsPerTeam) {
+                        merged.roundsPerTeam = Math.max(1, Number(merged.roundsPerTeam) || 1);
+                    }
 
-    // Ayarları yükle
-    loadSettings: async () => {
-        try {
-            const raw = await AsyncStorage.getItem(SETTINGS_KEY);
-            if (raw) {
-                const parsed = JSON.parse(raw);
+                    return { settings: merged };
+                });
+            },
 
-                // ✅ Güvenli normalize (eski kayıtlarda roundsPerTeam yoksa default kalsın)
-                const normalized = {
-                    ...parsed,
-                    roundsPerTeam:
-                        parsed?.roundsPerTeam == null
-                            ? undefined
-                            : Math.max(1, Number(parsed.roundsPerTeam) || 1),
+            // --- OYUN SONU SKORU (Kaydedilmez, RAM'de durur) ---
+            finalScores: { A: 0, B: 0 },
+
+            setFinalScores: (scores) => {
+                const next = {
+                    A: Number(scores?.A ?? 0),
+                    B: Number(scores?.B ?? 0),
                 };
+                set({ finalScores: next });
+            },
 
-                set((state) => ({ settings: { ...state.settings, ...normalized } }));
-            }
-        } catch (error) {
-            console.log('Settings load error:', error);
+            // Yeni oyun için skorları sıfırla
+            resetGame: () => set({ finalScores: { A: 0, B: 0 } }),
+        }),
+        {
+            name: 'GAME_SETTINGS_STORAGE', // AsyncStorage'daki anahtar ismi
+            storage: createJSONStorage(() => AsyncStorage), // Depolama motoru
+
+            // ÖNEMLİ: Sadece 'settings' objesini kaydet, skorları kaydetme.
+            partialize: (state) => ({ settings: state.settings }),
         }
-    },
-
-    // Ayarları kaydet ve güncelle
-    updateSettings: async (newSettings) => {
-        set((state) => {
-            const merged = { ...state.settings, ...newSettings };
-
-            // ✅ roundsPerTeam normalize
-            const updated = {
-                ...merged,
-                roundsPerTeam: Math.max(1, Number(merged.roundsPerTeam) || 1),
-            };
-
-            // Arka planda kaydet
-            AsyncStorage.setItem(SETTINGS_KEY, JSON.stringify(updated)).catch((err) =>
-                console.log('Settings save error:', err)
-            );
-
-            return { settings: updated };
-        });
-    },
-
-    // --- OYUN SONU SKORU (CROSS-SCREEN) ---
-    finalScores: { A: 0, B: 0 },
-
-    setFinalScores: (scores) => {
-        // Güvenli merge + sayı normalize
-        const next = {
-            A: Number(scores?.A ?? 0),
-            B: Number(scores?.B ?? 0),
-        };
-        set({ finalScores: next });
-    },
-
-    resetGame: () => set({ finalScores: { A: 0, B: 0 } }),
-}));
+    )
+);
 
 export default useGameStore;
