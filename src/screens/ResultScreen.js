@@ -1,5 +1,6 @@
+// src/screens/ResultScreen.js
 import React, { useEffect, useState } from "react";
-import { View, Text, TouchableOpacity, StatusBar } from "react-native";
+import { View, Text, TouchableOpacity, StatusBar, InteractionManager } from "react-native";
 import ConfettiCannon from "react-native-confetti-cannon";
 import useGameStore from "../store/useGameStore";
 import { Ionicons } from "@expo/vector-icons";
@@ -7,136 +8,150 @@ import { SafeAreaView } from "react-native-safe-area-context";
 
 import { useAudioPlayer } from "expo-audio";
 import {
-    maybeShowInterstitialAfterGame,
-    preloadInterstitial,
-    waitForAdLoaded,
-} from "../services/adService"; // ✅ güncellendi
+  maybeShowInterstitialAfterGame,
+  preloadInterstitial,
+  // waitForAdLoaded, // ✅ Artık UI'yi bloklamamak için kullanmıyoruz
+} from "../services/adService";
 
 export default function ResultScreen({ navigation }) {
-    const finalScores = useGameStore((s) => s.finalScores);
-    const settings = useGameStore((s) => s.settings);
-    const resetGame = useGameStore((s) => s.resetGame);
+  const finalScores = useGameStore((s) => s.finalScores);
+  const settings = useGameStore((s) => s.settings);
+  const resetGame = useGameStore((s) => s.resetGame);
 
-    const [showConfetti, setShowConfetti] = useState(false);
+  const [showConfetti, setShowConfetti] = useState(false);
 
-    const winPlayer = useAudioPlayer(require("../../assets/success.mp3"));
+  const winPlayer = useAudioPlayer(require("../../assets/success.mp3"));
 
-    const scoreA = Number(finalScores?.A ?? 0);
-    const scoreB = Number(finalScores?.B ?? 0);
+  const scoreA = Number(finalScores?.A ?? 0);
+  const scoreB = Number(finalScores?.B ?? 0);
 
-    const winnerKey = scoreA > scoreB ? "A" : scoreB > scoreA ? "B" : "Draw";
+  const winnerKey = scoreA > scoreB ? "A" : scoreB > scoreA ? "B" : "Draw";
 
-    const winnerName =
-        winnerKey === "A"
-            ? settings?.teamAName
-            : winnerKey === "B"
-                ? settings?.teamBName
-                : "Berabere";
+  const winnerName =
+    winnerKey === "A"
+      ? settings?.teamAName
+      : winnerKey === "B"
+      ? settings?.teamBName
+      : "Berabere";
 
-    const playWinSound = () => {
-        try {
-            winPlayer.seekTo?.(0);
-            winPlayer.play();
-        } catch (_) { }
-    };
+  const playWinSound = () => {
+    try {
+      winPlayer.seekTo?.(0);
+      winPlayer.play();
+    } catch (_) {}
+  };
 
-    useEffect(() => {
-        if (winnerKey !== "Draw") {
-            const timer = setTimeout(() => {
-                setShowConfetti(true);
-                playWinSound();
-            }, 500);
-            return () => clearTimeout(timer);
-        }
-    }, [winnerKey]);
+  useEffect(() => {
+    if (winnerKey !== "Draw") {
+      const timer = setTimeout(() => {
+        setShowConfetti(true);
+        playWinSound();
+      }, 500);
+      return () => clearTimeout(timer);
+    }
+  }, [winnerKey]);
 
-    const handleNewGame = async () => {
-        try {
-            // ✅ butona basınca bir kez daha preload tetikle
-            preloadInterstitial();
+  const handleNewGame = () => {
+    // ✅ 1) UI akışını ASLA bekletme
+    resetGame();
+    navigation.navigate("Home");
 
-            // ✅ max 1200ms bekle: yüklendiyse gösterme şansı artsın
-            await waitForAdLoaded(1200);
+    // ✅ 2) Reklam işini UI yerleştikten sonra arka tarafta dene
+    InteractionManager.runAfterInteractions(() => {
+      try {
+        // Bir kez daha preload tetikle (hazır değilse yüklemeye devam eder)
+        preloadInterstitial();
 
-            // ✅ strateji: ilk 3 oyun reklamsız + sonra 3 oyunda 1
-            await maybeShowInterstitialAfterGame();
-        } catch (_) {
-            // hata olsa bile akış devam
-        }
+        // ✅ Beklemesiz strateji:
+        // Reklam hazırsa gösterir, değilse göstermez ve sonraki tura kalır
+        maybeShowInterstitialAfterGame();
+      } catch (_) {}
+    });
+  };
 
-        resetGame();
-        navigation.navigate("Home");
-    };
+  return (
+    <SafeAreaView className="flex-1 bg-fuchsia-700">
+      <StatusBar barStyle="light-content" />
 
-    return (
-        <SafeAreaView className="flex-1 bg-fuchsia-700">
-            <StatusBar barStyle="light-content" />
+      {showConfetti && (
+        <ConfettiCannon
+          count={120}
+          origin={{ x: -10, y: 0 }}
+          fadeOut={true}
+          fallSpeed={2800}
+        />
+      )}
 
-            {showConfetti && (
-                <ConfettiCannon
-                    count={120} // ✅ daha hafif
-                    origin={{ x: -10, y: 0 }}
-                    fadeOut={true}
-                    fallSpeed={2800} // ✅ biraz daha hafif
-                />
-            )}
+      <View className="flex-1 items-center justify-center px-6">
+        <View className="bg-amber-400 p-8 rounded-full mb-6 shadow-2xl">
+          <Ionicons name="trophy" size={60} color="white" />
+        </View>
 
-            <View className="flex-1 items-center justify-center px-6">
-                <View className="bg-amber-400 p-8 rounded-full mb-6 shadow-2xl">
-                    <Ionicons name="trophy" size={60} color="white" />
-                </View>
+        <Text
+          className="text-white text-5xl font-black mb-6 uppercase italic tracking-tighter text-center"
+          numberOfLines={1}
+        >
+          Oyun Bitti!
+        </Text>
 
-                <Text
-                    className="text-white text-5xl font-black mb-6 uppercase italic tracking-tighter text-center"
-                    numberOfLines={1}
-                >
-                    Oyun Bitti!
-                </Text>
+        <Text
+          className="text-white text-3xl font-bold mb-12 uppercase tracking-widest text-center px-4"
+          numberOfLines={2}
+          adjustsFontSizeToFit
+          minimumFontScale={0.75}
+        >
+          {winnerKey === "Draw" ? "Dostluk Kazandı!" : `${winnerName} KAZANDI!`}
+        </Text>
 
-                <Text
-                    className="text-white text-3xl font-bold mb-12 uppercase tracking-widest text-center px-4"
-                    numberOfLines={2}
-                    adjustsFontSizeToFit
-                    minimumFontScale={0.75}
-                >
-                    {winnerKey === "Draw" ? "Dostluk Kazandı!" : `${winnerName} KAZANDI!`}
-                </Text>
-
-                <View className="w-full bg-white/10 p-8 rounded-[40px] border border-white/20 shadow-xl mb-12">
-                    <View className="flex-row justify-around items-center">
-                        <View className="items-center flex-1">
-                            <Text className="text-white font-bold mb-2 uppercase text-base text-center" numberOfLines={1}>
-                                {settings?.teamAName}
-                            </Text>
-                            <Text className={`text-6xl font-black ${winnerKey === "A" ? "text-amber-400" : "text-white"}`}>
-                                {scoreA}
-                            </Text>
-                        </View>
-
-                        <View className="h-16 w-[1px] bg-white/20 mx-2" />
-
-                        <View className="items-center flex-1">
-                            <Text className="text-white font-bold mb-2 uppercase text-base text-center" numberOfLines={1}>
-                                {settings?.teamBName}
-                            </Text>
-                            <Text className={`text-6xl font-black ${winnerKey === "B" ? "text-amber-400" : "text-white"}`}>
-                                {scoreB}
-                            </Text>
-                        </View>
-                    </View>
-                </View>
-
-                <View className="w-full">
-                    <TouchableOpacity
-                        className="bg-amber-400 w-full py-6 rounded-3xl shadow-2xl active:scale-95"
-                        onPress={handleNewGame}
-                    >
-                        <Text className="text-white text-center text-2xl font-black uppercase italic">
-                            YENİ OYUN
-                        </Text>
-                    </TouchableOpacity>
-                </View>
+        <View className="w-full bg-white/10 p-8 rounded-[40px] border border-white/20 shadow-xl mb-12">
+          <View className="flex-row justify-around items-center">
+            <View className="items-center flex-1">
+              <Text
+                className="text-white font-bold mb-2 uppercase text-base text-center"
+                numberOfLines={1}
+              >
+                {settings?.teamAName}
+              </Text>
+              <Text
+                className={`text-6xl font-black ${
+                  winnerKey === "A" ? "text-amber-400" : "text-white"
+                }`}
+              >
+                {scoreA}
+              </Text>
             </View>
-        </SafeAreaView>
-    );
+
+            <View className="h-16 w-[1px] bg-white/20 mx-2" />
+
+            <View className="items-center flex-1">
+              <Text
+                className="text-white font-bold mb-2 uppercase text-base text-center"
+                numberOfLines={1}
+              >
+                {settings?.teamBName}
+              </Text>
+              <Text
+                className={`text-6xl font-black ${
+                  winnerKey === "B" ? "text-amber-400" : "text-white"
+                }`}
+              >
+                {scoreB}
+              </Text>
+            </View>
+          </View>
+        </View>
+
+        <View className="w-full">
+          <TouchableOpacity
+            className="bg-amber-400 w-full py-6 rounded-3xl shadow-2xl active:scale-95"
+            onPress={handleNewGame}
+          >
+            <Text className="text-white text-center text-2xl font-black uppercase italic">
+              YENİ OYUN
+            </Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    </SafeAreaView>
+  );
 }
