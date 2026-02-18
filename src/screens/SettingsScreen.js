@@ -15,7 +15,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import useGameStore from "../store/useGameStore";
 
-// ✅ IAP
+// IAP
 import {
     buyRemoveAds,
     restoreRemoveAds,
@@ -24,29 +24,26 @@ import {
 } from "../services/iapService";
 
 export default function SettingsScreen({ navigation }) {
+    // ✅ DÜZELTME: loadSettings kaldırıldı. Sadece settings ve updateSettings alındı.
     const settings = useGameStore((s) => s.settings);
     const updateSettings = useGameStore((s) => s.updateSettings);
-    const loadSettings = useGameStore((s) => s.loadSettings);
 
-    // ✅ Input UX: yazarken string tut (boş yazabilsin)
+    // Input state'leri
     const [durationText, setDurationText] = useState(String(settings?.duration ?? 60));
     const [maxPassText, setMaxPassText] = useState(String(settings?.maxPass ?? 3));
-
-    // ✅ YENİ: takım başına tur sayısı
     const [roundsPerTeamText, setRoundsPerTeamText] = useState(
         String(settings?.roundsPerTeam ?? 4)
     );
 
-    // ✅ Remove Ads UI state
+    // Remove Ads UI state
     const [removeAdsEnabled, setRemoveAdsEnabled] = useState(false);
     const [removeAdsPriceText, setRemoveAdsPriceText] = useState("");
     const [iapBusy, setIapBusy] = useState(false);
 
-    useEffect(() => {
-        loadSettings();
-    }, [loadSettings]);
+    // ✅ DÜZELTME: useEffect(() => { loadSettings() }, []) KODU SİLİNDİ.
+    // Zustand Persist sayesinde ayarlar zaten otomatik yüklü geliyor.
 
-    // Store değişirse inputları senkronla
+    // Store değişirse inputları senkronla (örn: başka yerden değişirse)
     useEffect(() => {
         setDurationText(String(settings?.duration ?? 60));
     }, [settings?.duration]);
@@ -59,7 +56,7 @@ export default function SettingsScreen({ navigation }) {
         setRoundsPerTeamText(String(settings?.roundsPerTeam ?? 4));
     }, [settings?.roundsPerTeam]);
 
-    // ✅ Remove Ads: local durum + fiyat çek
+    // Remove Ads: local durum + fiyat çek
     useEffect(() => {
         let alive = true;
         (async () => {
@@ -100,13 +97,13 @@ export default function SettingsScreen({ navigation }) {
 
     const clamp = (num, min, max) => Math.max(min, Math.min(max, num));
 
-    // Yazarken sadece rakamları al, store'a anında yazma (UX)
+    // Yazarken sadece rakamları al
     const handleNumberTyping = (setter) => (text) => {
         const val = text.replace(/[^0-9]/g, "");
         setter(val);
     };
 
-    // Blur veya kaydet anında store'a yaz (min/max clamp)
+    // Blur veya kaydet anında store'a yaz
     const sanitizeAndCommit = (field, text, min, max, setter) => {
         const cleaned = String(text ?? "").replace(/[^0-9]/g, "");
         const parsed = cleaned === "" ? min : parseInt(cleaned, 10);
@@ -116,7 +113,7 @@ export default function SettingsScreen({ navigation }) {
         updateField(field, clamped);
     };
 
-    // ✅ IAP handlers
+    // IAP handlers
     const onBuyRemoveAds = async () => {
         if (iapBusy || removeAdsEnabled) return;
 
@@ -128,7 +125,6 @@ export default function SettingsScreen({ navigation }) {
                 return;
             }
 
-            // Satın alma listener ile tamamlanır; yine de local ile UI'ı güncelleyelim
             const local = await getLocalRemoveAds();
             setRemoveAdsEnabled(!!local);
 
@@ -293,7 +289,7 @@ export default function SettingsScreen({ navigation }) {
                             </View>
                         </View>
 
-                        {/* ✅ PREMIUM / REMOVE ADS */}
+                        {/* PREMIUM / REMOVE ADS */}
                         <View className="gap-4 mt-6">
                             <Text className="text-slate-500 font-bold uppercase tracking-widest text-xs ml-8">
                                 Premium
@@ -351,7 +347,7 @@ export default function SettingsScreen({ navigation }) {
                             </View>
                         </View>
 
-                        {/* ✅ YASAL / GİZLİLİK POLİTİKASI */}
+                        {/* YASAL */}
                         <View className="gap-4 mt-6">
                             <Text className="text-slate-500 font-bold uppercase tracking-widest text-xs ml-8">
                                 Yasal

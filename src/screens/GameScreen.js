@@ -7,8 +7,8 @@ import {
   Modal,
   StatusBar,
   InteractionManager,
-  BackHandler, // ✅ Geri tuşu kontrolü için eklendi
-  Alert,       // ✅ Çıkış onayı için eklendi
+  BackHandler,
+  Alert,
 } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Ionicons } from "@expo/vector-icons";
@@ -16,19 +16,19 @@ import { SafeAreaView } from "react-native-safe-area-context";
 
 import { useAudioPlayer } from "expo-audio";
 
+// Servisler
 import { loadWordsOfflineFirst, clearWordsCache } from "../services/wordService";
 import { gameReducer, initialState } from "../reducers/gameReducer";
 import { saveScore } from "../services/leaderboardService";
 import { logRoundEnd } from "../services/analyticsService";
 import useGameStore from "../store/useGameStore";
 
-// ✅ Arka arkaya aynı ilk kelime gelmesin
+// --- SABİTLER ---
 const LAST_FIRST_WORD_KEY = "LAST_FIRST_WORD_V1";
-
-// ✅ 3 renk döngüsü
 const CARD_COLORS = ["bg-fuchsia-700", "bg-amber-400", "bg-sky-500"];
 
-// ✅ Fisher–Yates shuffle (uniform)
+// --- YARDIMCI FONKSİYONLAR ---
+
 const shuffleWords = (words) => {
   const arr = [...words];
   for (let i = arr.length - 1; i > 0; i--) {
@@ -38,7 +38,6 @@ const shuffleWords = (words) => {
   return arr;
 };
 
-// ✅ Arka arkaya aynı ilk kelime gelmesin
 const ensureDifferentFirstWord = async (words) => {
   try {
     const lastFirst = await AsyncStorage.getItem(LAST_FIRST_WORD_KEY);
@@ -61,18 +60,24 @@ const ensureDifferentFirstWord = async (words) => {
 };
 
 export default function GameScreen({ navigation }) {
+  // Reducer ve State
   const [state, dispatch] = useReducer(gameReducer, initialState);
   const [fetchError, setFetchError] = useState(null);
 
-  // ✅ Selector ile al (Zustand Persist sayesinde loadSettings'e gerek yok)
+  // Store Bağlantısı (loadSettings KALDIRILDI)
   const settings = useGameStore((s) => s.settings);
   const setFinalScores = useGameStore((s) => s.setFinalScores);
 
-  // ✅ Ses Efektleri
+  // Ses Oynatıcılar
   const successPlayer = useAudioPlayer(require("../../assets/success.mp3"));
   const errorPlayer = useAudioPlayer(require("../../assets/error.mp3"));
   const tickSlowPlayer = useAudioPlayer(require("../../assets/tick_slow.mp3"));
 
+  // Referanslar
+  const intervalRef = useRef(null);
+  const hasPlayedTickRef = useRef(false);
+
+  // Ses Çalma
   const playSound = (type) => {
     try {
       if (type === "SUCCESS") {
@@ -92,25 +97,25 @@ export default function GameScreen({ navigation }) {
     } catch (_) { }
   };
 
-  // ✅ Interval referansı
-  const intervalRef = useRef(null);
-  // ✅ 10 saniyenin altına ilk kez düşünce 1 kere çalsın
-  const hasPlayedTickRef = useRef(false);
-
-  // ✅ 1) Oyun Başlatma (Offline-First)
+  // 1. OYUN BAŞLATMA
   const initGame = useCallback(async () => {
     try {
       setFetchError(null);
-      // Not: loadSettings() kaldırdık, çünkü store artık otomatik yükleniyor.
 
+      // Kelimeleri getir
       const { words } = await loadWordsOfflineFirst(200);
 
       const list = Array.isArray(words) ? words : [];
       let shuffled = shuffleWords(list);
+
       shuffled = await ensureDifferentFirstWord(shuffled);
 
       dispatch({ type: "SET_WORDS", payload: shuffled });
-      await AsyncStorage.setItem(LAST_FIRST_WORD_KEY, shuffled[0]?.targetWord || "");
+
+      if (shuffled.length > 0) {
+        AsyncStorage.setItem(LAST_FIRST_WORD_KEY, shuffled[0]?.targetWord || "").catch(() => { });
+      }
+
     } catch (e) {
       console.log("Game Init Error:", e);
       setFetchError("Bağlantı hatası veya kelimeler yüklenemedi.");
@@ -125,7 +130,7 @@ export default function GameScreen({ navigation }) {
     };
   }, [initGame]);
 
-  // ✅ 2) Ayarlar değişirse veya yüklenirse Reducer'ı güncelle
+  // 2. AYARLARI GÜNCELLE
   useEffect(() => {
     if (!settings) return;
     dispatch({
@@ -136,12 +141,11 @@ export default function GameScreen({ navigation }) {
         roundsPerTeam: settings.roundsPerTeam,
       },
     });
-  }, [settings]); // settings objesi değişince çalışır
+  }, [settings]);
 
-  // ✅ 3) Android Geri Tuşu Koruması (YENİ)
+  // 3. GERİ TUŞU KORUMASI (DÜZELTİLDİ: subscription.remove kullanıldı)
   useEffect(() => {
     const onBackPress = () => {
-      // Oyun bitmediyse çıkış için onay iste
       if (!state.isGameOver) {
         Alert.alert(
           "Oyundan Çık?",
@@ -155,16 +159,20 @@ export default function GameScreen({ navigation }) {
             }
           ]
         );
-        return true; // Sistemi engelle
+        return true;
       }
-      return false; // Normal geri git
+      return false;
     };
 
-    BackHandler.addEventListener("hardwareBackPress", onBackPress);
-    return () => BackHandler.removeEventListener("hardwareBackPress", onBackPress);
+    // ✅ YENİ YAPI: removeEventListener yerine subscription.remove()
+    const subscription = BackHandler.addEventListener("hardwareBackPress", onBackPress);
+
+    return () => {
+      subscription.remove();
+    };
   }, [state.isGameOver, navigation]);
 
-  // ✅ 4) Timer Döngüsü
+  // 4. ZAMANLAYICI
   useEffect(() => {
     if (!state.isActive) {
       if (intervalRef.current) clearInterval(intervalRef.current);
@@ -184,13 +192,9 @@ export default function GameScreen({ navigation }) {
     };
   }, [state.isActive]);
 
-  // ✅ 5) Son saniye sesi
+  // 5. SON SANİYE SESİ
   useEffect(() => {
-    if (!state.isActive) {
-      hasPlayedTickRef.current = false;
-      return;
-    }
-    if (state.timeLeft <= 0) {
+    if (!state.isActive || state.timeLeft <= 0) {
       hasPlayedTickRef.current = false;
       return;
     }
@@ -200,7 +204,7 @@ export default function GameScreen({ navigation }) {
     }
   }, [state.isActive, state.timeLeft]);
 
-  // ✅ 6) Tur Sonu Kontrolü
+  // 6. TUR SONU
   useEffect(() => {
     if (state.timeLeft === 0 && state.isActive === false && !state.isGameOver) {
       const teamScore = state.activeTeam === "A" ? state.teamAScore : state.teamBScore;
@@ -217,13 +221,12 @@ export default function GameScreen({ navigation }) {
     }
   }, [state.timeLeft, state.isActive, state.isGameOver, state.activeTeam, settings]);
 
-  // ✅ 7) Oyun Bitti (Result Ekranına Geçiş)
+  // 7. OYUN BİTTİ
   useEffect(() => {
     if (!state.isGameOver) return;
 
     let cancelled = false;
 
-    // UI'ın oturması için hafif gecikme
     const navTimer = setTimeout(() => {
       if (cancelled) return;
       navigation?.replace?.("Result");
@@ -232,13 +235,8 @@ export default function GameScreen({ navigation }) {
     InteractionManager.runAfterInteractions(async () => {
       if (cancelled) return;
       try {
-        const winnerScore =
-          state.teamAScore > state.teamBScore ? state.teamAScore : state.teamBScore;
-
-        // Firebase'e skor kaydet (sessizce)
+        const winnerScore = state.teamAScore > state.teamBScore ? state.teamAScore : state.teamBScore;
         saveScore("Player", winnerScore).catch(() => { });
-
-        // Store'a kaydet (Result ekranı buradan okuyacak)
         setFinalScores({ A: state.teamAScore, B: state.teamBScore });
       } catch (_) { }
     });
@@ -249,7 +247,7 @@ export default function GameScreen({ navigation }) {
     };
   }, [state.isGameOver, state.teamAScore, state.teamBScore, navigation, setFinalScores]);
 
-  // --- Aksiyonlar ---
+  // --- AKSİYONLAR ---
   const onCorrect = () => {
     if (!state.isActive) return;
     dispatch({ type: "SUCCESS" });
@@ -272,7 +270,7 @@ export default function GameScreen({ navigation }) {
     dispatch({ type: "START_TURN" });
   };
 
-  // --- Loading Ekranı ---
+  // --- RENDER ---
   if (state.loading && !state.words?.length && !fetchError) {
     return (
       <View className="flex-1 justify-center items-center bg-white">
@@ -282,11 +280,9 @@ export default function GameScreen({ navigation }) {
     );
   }
 
-  // --- Render Değişkenleri ---
   const currentWord = state.words?.[state.currentIndex];
   const activeTeamName = state.activeTeam === "A" ? settings?.teamAName : settings?.teamBName;
 
-  // Modal için önceki takım bilgileri
   const prevTeam = state.activeTeam === "A" ? "B" : "A";
   const prevTeamName = prevTeam === "A" ? settings?.teamAName : settings?.teamBName;
   const prevTeamScore = prevTeam === "A" ? state.teamAScore : state.teamBScore;
@@ -305,10 +301,12 @@ export default function GameScreen({ navigation }) {
     <SafeAreaView className="flex-1 bg-slate-50">
       <StatusBar barStyle="dark-content" />
 
-      {/* Üst Bilgi Çubuğu */}
+      {/* Üst Bilgi */}
       <View className="flex-row justify-between items-center px-6 py-4 bg-white shadow-sm">
         <View className="items-center flex-1">
-          <Text className="text-slate-400 text-[10px] font-bold uppercase">{activeTeamName}</Text>
+          <Text className="text-slate-400 text-[10px] font-bold uppercase" numberOfLines={1}>
+            {activeTeamName}
+          </Text>
           <Text className="text-sky-500 text-3xl font-black">
             {state.activeTeam === "A" ? state.teamAScore : state.teamBScore}
           </Text>
@@ -321,7 +319,9 @@ export default function GameScreen({ navigation }) {
               {mm}:{ss}
             </Text>
           </View>
-          <Text className="text-slate-400 text-[10px] font-bold uppercase mt-2">TUR {roundLabel}</Text>
+          <Text className="text-slate-400 text-[10px] font-bold uppercase mt-2">
+            TUR {roundLabel}
+          </Text>
         </View>
 
         <View className="items-center flex-1">
@@ -330,21 +330,21 @@ export default function GameScreen({ navigation }) {
         </View>
       </View>
 
-      {/* Kart Alanı */}
+      {/* Kart */}
       <View className="flex-1 justify-center px-8">
         <View className="bg-white rounded-[45px] shadow-2xl overflow-hidden border border-slate-100">
-          {/* Kelime Başlığı */}
           <View className={`${currentColor} py-10 items-center`}>
             <Text className={`${headerTextColor} text-4xl font-black uppercase tracking-tighter text-center px-4`}>
               {currentWord?.targetWord ?? "—"}
             </Text>
           </View>
 
-          {/* Yasaklı Kelimeler */}
           <View className="py-10 items-center">
             {(currentWord?.forbiddenWords ?? []).map((word, index) => (
               <View key={`${word}-${index}`} className="py-2 w-full items-center">
-                <Text className="text-slate-600 text-2xl font-bold uppercase tracking-tight">{word}</Text>
+                <Text className="text-slate-600 text-2xl font-bold uppercase tracking-tight">
+                  {word}
+                </Text>
                 {index < (currentWord?.forbiddenWords?.length ?? 0) - 1 && (
                   <View className="w-1/2 h-[1px] bg-slate-100 mt-2" />
                 )}
@@ -384,7 +384,7 @@ export default function GameScreen({ navigation }) {
         </TouchableOpacity>
       </View>
 
-      {/* Hata Modalı */}
+      {/* Modallar */}
       <Modal visible={!!fetchError} transparent animationType="fade">
         <View className="flex-1 items-center justify-center bg-black/40 px-6">
           <View className="bg-white w-full rounded-3xl p-6">
@@ -395,9 +395,7 @@ export default function GameScreen({ navigation }) {
               <TouchableOpacity
                 className="flex-1 bg-slate-200 h-12 rounded-2xl items-center justify-center"
                 onPress={async () => {
-                  try {
-                    await clearWordsCache?.();
-                  } catch (_) { }
+                  try { await clearWordsCache?.(); } catch (_) { }
                   setFetchError(null);
                   initGame();
                 }}
@@ -419,7 +417,6 @@ export default function GameScreen({ navigation }) {
         </View>
       </Modal>
 
-      {/* Tur Sonu Modalı */}
       <Modal
         visible={!state.isActive && !state.isGameOver && state.timeLeft > 0 && !fetchError}
         transparent
@@ -435,8 +432,12 @@ export default function GameScreen({ navigation }) {
               Tur Sonucu
             </Text>
 
-            <Text className="text-fuchsia-700 text-3xl font-black mb-1 text-center">{prevTeamName}</Text>
-            <Text className="text-5xl font-black text-slate-800 mb-2">{prevTeamScore}</Text>
+            <Text className="text-fuchsia-700 text-3xl font-black mb-1 text-center">
+              {prevTeamName}
+            </Text>
+            <Text className="text-5xl font-black text-slate-800 mb-2">
+              {prevTeamScore}
+            </Text>
 
             <Text className="text-slate-400 text-xs font-bold uppercase tracking-widest mb-6">
               TUR {roundLabel}
