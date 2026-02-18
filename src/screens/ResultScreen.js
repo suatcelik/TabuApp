@@ -1,6 +1,11 @@
-// src/screens/ResultScreen.js
 import React, { useEffect, useState } from "react";
-import { View, Text, TouchableOpacity, StatusBar, InteractionManager } from "react-native";
+import {
+  View,
+  Text,
+  TouchableOpacity,
+  StatusBar,
+  InteractionManager,
+} from "react-native";
 import ConfettiCannon from "react-native-confetti-cannon";
 import useGameStore from "../store/useGameStore";
 import { Ionicons } from "@expo/vector-icons";
@@ -10,7 +15,6 @@ import { useAudioPlayer } from "expo-audio";
 import {
   maybeShowInterstitialAfterGame,
   preloadInterstitial,
-  // waitForAdLoaded, // ✅ Artık UI'yi bloklamamak için kullanmıyoruz
 } from "../services/adService";
 
 export default function ResultScreen({ navigation }) {
@@ -52,19 +56,15 @@ export default function ResultScreen({ navigation }) {
   }, [winnerKey]);
 
   const handleNewGame = () => {
-    // ✅ 1) UI akışını ASLA bekletme
+    // ✅ UI akışını hiç bekletme
     resetGame();
     navigation.navigate("Home");
 
-    // ✅ 2) Reklam işini UI yerleştikten sonra arka tarafta dene
+    // ✅ Reklamı UI yerleştikten sonra dene
     InteractionManager.runAfterInteractions(() => {
       try {
-        // Bir kez daha preload tetikle (hazır değilse yüklemeye devam eder)
         preloadInterstitial();
-
-        // ✅ Beklemesiz strateji:
-        // Reklam hazırsa gösterir, değilse göstermez ve sonraki tura kalır
-        maybeShowInterstitialAfterGame();
+        maybeShowInterstitialAfterGame(); // hazırsa gösterir, değilse geçer
       } catch (_) {}
     });
   };
