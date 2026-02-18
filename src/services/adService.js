@@ -1,4 +1,3 @@
-// src/services/adService.js
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import mobileAds, {
   InterstitialAd,
@@ -15,8 +14,6 @@ const SHOW_EVERY = 3; // Sonra her 3 maçta 1
 
 // 🔥 PROD ID
 const PROD_INTERSTITIAL_ID = "ca-app-pub-7780845735147349/8291922826";
-
-// İstersen prod’da bile test reklamı basmak için:
 const FORCE_TEST_ADS = false;
 
 const AD_UNIT_ID = FORCE_TEST_ADS
@@ -25,17 +22,18 @@ const AD_UNIT_ID = FORCE_TEST_ADS
   ? TestIds.INTERSTITIAL
   : PROD_INTERSTITIAL_ID;
 
-// ---- Internal state (singleton) ----
+// ---- singleton state ----
 let interstitial = null;
 
 let isLoaded = false;
 let isLoading = false;
 let isShowing = false;
 
-let loadResolvers = [];
 let initialized = false;
 let lastLoadAttemptAt = 0;
 let retryTimer = null;
+
+let loadResolvers = [];
 
 const resolveLoadedWaiters = (value) => {
   const arr = [...loadResolvers];
@@ -67,7 +65,7 @@ async function isPremium() {
 }
 
 /**
- * ✅ Uygulama açılışında bir kere çağır
+ * ✅ App açılışında 1 kere çağır (App.js useEffect içinde olduğu gibi)
  */
 export async function initAds() {
   if (initialized) return;
@@ -75,21 +73,20 @@ export async function initAds() {
 
   try {
     await mobileAds().initialize();
-    preloadInterstitial(); // ilk preload
+    preloadInterstitial();
   } catch (e) {
     console.log("AdMob Init Error:", e);
   }
 }
 
 /**
- * ✅ Interstitial tek instance + tek listener seti
- * - Eğer instance yoksa oluşturur
- * - Varsa tekrar yaratmaz, sadece load() eder
+ * ✅ Tek interstitial instance + listener birikmez
  */
 export function preloadInterstitial() {
-  // Çok sık çağrılmayı sakinleştir
   const now = Date.now();
-  if (now - lastLoadAttemptAt < 800) return; // 0.8sn throttle
+
+  // çok sık çağrılmayı engelle (spike -> kasma)
+  if (now - lastLoadAttemptAt < 800) return;
   lastLoadAttemptAt = now;
 
   if (isLoaded || isLoading || isShowing) return;
@@ -100,21 +97,18 @@ export function preloadInterstitial() {
         requestNonPersonalizedAdsOnly: true,
       });
 
-      // ✅ Listener’lar SADECE 1 kere bağlanır
+      // listener'lar 1 kere bağlanır
       interstitial.addAdEventListener(AdEventType.LOADED, () => {
         isLoaded = true;
         isLoading = false;
         resolveLoadedWaiters(true);
-        // console.log("✅ Interstitial loaded");
       });
 
       interstitial.addAdEventListener(AdEventType.CLOSED, () => {
         isLoaded = false;
         isLoading = false;
         isShowing = false;
-        // console.log("🔄 Interstitial closed -> preload next");
-        // Reklam kapanınca bir sonrakini hazırla
-        preloadInterstitial();
+        preloadInterstitial(); // kapanınca yenisini hazırla
       });
 
       interstitial.addAdEventListener(AdEventType.ERROR, (error) => {
@@ -123,9 +117,6 @@ export function preloadInterstitial() {
         isShowing = false;
         resolveLoadedWaiters(false);
         console.log("❌ Interstitial error:", error?.message ?? error);
-
-        // ✅ Daha makul retry (15s yerine küçük backoff)
-        // İlk deneme 5s, sonra 15s
         scheduleRetry(5000);
       });
     }
@@ -144,8 +135,8 @@ export function preloadInterstitial() {
 }
 
 /**
- * ✅ UI'yi bloklamadan "hazır mı?" beklemek isteyen yerler için.
- * ResultScreen'de await etmeni önermiyorum.
+ * ✅ UI'yi bloklamadan hazır olmasını beklemek isteyen yerler için
+ * (ResultScreen'de await etmiyoruz)
  */
 export async function waitForAdLoaded(maxMs = 1500) {
   if (isLoaded) return true;
@@ -154,7 +145,6 @@ export async function waitForAdLoaded(maxMs = 1500) {
 
   return await new Promise((resolve) => {
     const timeout = setTimeout(() => resolve(false), maxMs);
-
     loadResolvers.push((ok) => {
       clearTimeout(timeout);
       resolve(!!ok);
@@ -163,47 +153,38 @@ export async function waitForAdLoaded(maxMs = 1500) {
 }
 
 /**
- * ✅ Oyun bitince çağır.
- * - ilk FREE_GAMES reklamsız
- * - sonra SHOW_EVERY maçta 1 reklam
- * - show asla "bekleyerek" yapılmaz; hazırsa gösterilir.
+ * ✅ Oyun bitince çağır:
+ * - ilk 3 oyun reklamsız
+ * - sonra her 3 maçta 1
+ * - hazır değilse asla beklemez, sadece preload eder
  */
 export async function maybeShowInterstitialAfterGame() {
   if (await isPremium()) return false;
 
-  // toplam oyun sayısı
   const totalRaw = await AsyncStorage.getItem(TOTAL_GAMES_KEY);
   const total = Number(totalRaw || 0) + 1;
   await AsyncStorage.setItem(TOTAL_GAMES_KEY, String(total));
 
   if (total <= FREE_GAMES) {
-    // console.log(`Free games left: ${FREE_GAMES - total}`);
-    // Yine de arka planda yüklemeye devam et
     preloadInterstitial();
     return false;
   }
 
-  // reklam sayacı
   const counterRaw = await AsyncStorage.getItem(AD_COUNTER_KEY);
   const counter = Number(counterRaw || 0) + 1;
 
   if (counter >= SHOW_EVERY) {
-    // Sayaç sıfırla (bu oyun reklam hakkı)
     await AsyncStorage.setItem(AD_COUNTER_KEY, "0");
 
-    // Hazır değilse gösterme, sadece preload et
     if (!interstitial || !isLoaded || isLoading || isShowing) {
-      // console.log("Interstitial not ready, skipping show");
       preloadInterstitial();
       return false;
     }
 
     try {
-      // ✅ Show state: tekrarlı show / çakışmayı engelle
       isShowing = true;
 
-      // ✅ Ekran geçişine nefes ver (küçük gecikme)
-      // Not: Bu gecikme UI'de "donma" yaratmaz çünkü show arka tarafta tetikleniyor olmalı
+      // küçük gecikme: navigation / animasyon çakışmasın
       setTimeout(() => {
         try {
           if (interstitial && isLoaded) {
@@ -212,7 +193,7 @@ export async function maybeShowInterstitialAfterGame() {
             isShowing = false;
             preloadInterstitial();
           }
-        } catch (e) {
+        } catch (_) {
           isShowing = false;
           preloadInterstitial();
         }
