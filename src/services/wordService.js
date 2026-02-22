@@ -11,7 +11,7 @@ const CACHE_TTL_MS = 24 * 60 * 60 * 1000; // 24 saat
 
 // Timeout süresini 8000ms'den 2500ms'ye düşürdük.
 // Eğer internet yavaşsa kullanıcıyı bekletme, direkt local veriyi aç.
-const FIRESTORE_TIMEOUT_MS = 2500;
+const FIRESTORE_TIMEOUT_MS = 5000;
 
 let memCache = {
   version: null,

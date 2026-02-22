@@ -12,7 +12,13 @@
       "backgroundColor": "#ffffff"
     },
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.arcodiba.tabuapp",
+      "buildNumber": "2",
+      "infoPlist": {
+        "NSUserTrackingUsageDescription": "Kişiselleştirilmiş reklamlar gösterebilmek ve oyun deneyiminizi iyileştirebilmek için izninize ihtiyacımız var.",
+        "ITSAppUsesNonExemptEncryption": false
+      }
     },
     "android": {
       "adaptiveIcon": {
@@ -35,7 +41,8 @@
       [
         "react-native-google-mobile-ads",
         {
-          "androidAppId": "ca-app-pub-7780845735147349~4057164341"
+          "androidAppId": "ca-app-pub-7780845735147349~4057164341",
+          "iosAppId": "ca-app-pub-7780845735147349~3444167665"
         }
       ]
     ],
