@@ -1,5 +1,6 @@
 // src/services/adService.js
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { Platform } from "react-native";
 import mobileAds, {
   InterstitialAd,
   AdEventType,
@@ -13,36 +14,95 @@ const PREMIUM_KEY = "IS_PREMIUM_V1";
 const FREE_GAMES = 3;
 const SHOW_EVERY = 3;
 
-// 🔥 PROD ID
-const PROD_INTERSTITIAL_ID = "ca-app-pub-7780845735147349/8291922826";
+// =======================
+// ✅ DOĞRU PROD ID'LER
+// =======================
+const PROD_INTERSTITIAL_ID = Platform.select({
+  ios: "ca-app-pub-7780845735147349/7965333779",
+  android: "ca-app-pub-7780845735147349/8291922826",
+});
+
+// Test kontrol
 const FORCE_TEST_ADS = false;
 
-const AD_UNIT_ID = FORCE_TEST_ADS
-  ? TestIds.INTERSTITIAL
-  : __DEV__
+const AD_UNIT_ID =
+  FORCE_TEST_ADS || __DEV__
     ? TestIds.INTERSTITIAL
     : PROD_INTERSTITIAL_ID;
 
+// State
 let interstitial = null;
 let isLoaded = false;
 let isLoading = false;
 let isShowing = false;
 let initialized = false;
-
-// ✅ PERFORMANS DÜZELTMESİ:
-// Başlangıç değeri 'null' olmalı. Böylece 'false' (ücretsiz üye) durumu ile
-// 'henüz kontrol edilmedi' durumu birbirinden ayrılır.
 let isPremiumCache = null;
-
-// Kapanınca çalışacak tek seferlik fonksiyon
 let onAdClosedAction = null;
 
+let unsubLoaded = null;
+let unsubClosed = null;
+let unsubError = null;
+
+function cleanupListeners() {
+  unsubLoaded?.();
+  unsubClosed?.();
+  unsubError?.();
+  unsubLoaded = unsubClosed = unsubError = null;
+}
+
+function resetState() {
+  isLoaded = false;
+  isLoading = false;
+  isShowing = false;
+}
+
+function createInterstitial() {
+  if (interstitial) return;
+
+  interstitial = InterstitialAd.createForAdRequest(AD_UNIT_ID, {
+    requestNonPersonalizedAdsOnly: true, // 🍎 Apple için güvenli
+  });
+
+  cleanupListeners();
+
+  unsubLoaded = interstitial.addAdEventListener(
+    AdEventType.LOADED,
+    () => {
+      isLoaded = true;
+      isLoading = false;
+    }
+  );
+
+  unsubClosed = interstitial.addAdEventListener(
+    AdEventType.CLOSED,
+    () => {
+      resetState();
+
+      if (onAdClosedAction) {
+        const fn = onAdClosedAction;
+        onAdClosedAction = null;
+        fn();
+      }
+
+      preloadInterstitial();
+    }
+  );
+
+  unsubError = interstitial.addAdEventListener(
+    AdEventType.ERROR,
+    (error) => {
+      resetState();
+      console.log("Ad Error:", error);
+    }
+  );
+}
+
 export async function initAds() {
-  // ✅ Cache kontrolü ile başla, Premium ise hiç SDK başlatma
   if (await isPremium()) return;
 
   if (initialized) return;
   initialized = true;
+
   try {
     await mobileAds().initialize();
     preloadInterstitial();
@@ -52,43 +112,11 @@ export async function initAds() {
 }
 
 export function preloadInterstitial() {
-  // ✅ BELLEKTEN KONTROL: Cache true ise (Premium) yüklemeyi durdur
   if (isPremiumCache === true) return;
-
   if (isLoaded || isLoading || isShowing) return;
 
   try {
-    if (!interstitial) {
-      interstitial = InterstitialAd.createForAdRequest(AD_UNIT_ID, {
-        requestNonPersonalizedAdsOnly: true,
-      });
-
-      interstitial.addAdEventListener(AdEventType.LOADED, () => {
-        isLoaded = true;
-        isLoading = false;
-      });
-
-      interstitial.addAdEventListener(AdEventType.CLOSED, () => {
-        isLoaded = false;
-        isLoading = false;
-        isShowing = false;
-
-        if (onAdClosedAction) {
-          onAdClosedAction();
-          onAdClosedAction = null;
-        }
-
-        preloadInterstitial();
-      });
-
-      interstitial.addAdEventListener(AdEventType.ERROR, (error) => {
-        isLoaded = false;
-        isLoading = false;
-        isShowing = false;
-        console.log("Ad Error:", error);
-      });
-    }
-
+    createInterstitial();
     isLoading = true;
     interstitial.load();
   } catch (e) {
@@ -109,13 +137,11 @@ export async function prepareNextGameAd() {
   const counter = Number(counterRaw || 0);
 
   if (counter + 1 >= SHOW_EVERY && !isLoaded && !isLoading) {
-    console.log("Reklam sırası yaklaştı, önden yükleniyor...");
     preloadInterstitial();
   }
 }
 
 export async function checkAndShowAd(onClosed) {
-  // Burası artık diske gitmez, direkt RAM'den okur (HIZLI)
   if (await isPremium()) return false;
 
   const totalRaw = await AsyncStorage.getItem(TOTAL_GAMES_KEY);
@@ -135,42 +161,48 @@ export async function checkAndShowAd(onClosed) {
 
     if (isLoaded && interstitial) {
       isShowing = true;
-      onAdClosedAction = onClosed;
+      onAdClosedAction = typeof onClosed === "function" ? onClosed : null;
+
       try {
         interstitial.show();
         return true;
-      } catch (e) {
+      } catch {
         isShowing = false;
+        onAdClosedAction = null;
         preloadInterstitial();
         return false;
       }
-    } else {
-      preloadInterstitial();
-      return false;
     }
-  } else {
-    await AsyncStorage.setItem(AD_COUNTER_KEY, String(counter));
+
+    preloadInterstitial();
     return false;
   }
+
+  await AsyncStorage.setItem(AD_COUNTER_KEY, String(counter));
+  return false;
 }
 
-// ✅ KRİTİK GÜNCELLEME BURADA YAPILDI
 async function isPremium() {
-  // Eğer cache 'null' değilse (yani true VEYA false ise) direkt döndür.
-  // Bu sayede ÜCRETSİZ kullanıcılar için de AsyncStorage'a gitmez.
   if (isPremiumCache !== null) return isPremiumCache;
 
   try {
     const v = await AsyncStorage.getItem(PREMIUM_KEY);
-    // Değeri okuyup cache'e yazıyoruz
-    isPremiumCache = (v === "true");
+    isPremiumCache = v === "true";
     return isPremiumCache;
   } catch {
+    isPremiumCache = false;
     return false;
   }
 }
 
 export async function setPremium(value) {
-  isPremiumCache = !!value; // Cache'i anında güncelle
+  isPremiumCache = !!value;
   await AsyncStorage.setItem(PREMIUM_KEY, value ? "true" : "false");
+
+  if (isPremiumCache) {
+    onAdClosedAction = null;
+    resetState();
+    cleanupListeners();
+    interstitial = null;
+  }
 }

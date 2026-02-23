@@ -68,7 +68,7 @@ export default function SettingsScreen({ navigation }) {
 
             try {
                 const products = await getProducts();
-                const p = products?.find((x) => x.productId === "remove_ads");
+                const p = products?.find((x) => x.productId === "tabu_reklamsiz");
                 const price = p?.localizedPrice || p?.price || "";
                 if (!alive) return;
                 setRemoveAdsPriceText(price ? ` (${price})` : "");
