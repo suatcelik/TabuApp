@@ -1,11 +1,21 @@
 // src/services/iapService.js
-import * as RNIap from "react-native-iap";
+import {
+    initConnection,
+    endConnection,
+    fetchProducts,
+    requestPurchase,
+    getAvailablePurchases,
+    purchaseUpdatedListener,
+    purchaseErrorListener,
+    finishTransaction,
+    flushFailedPurchasesCachedAsPendingAndroid,
+} from "react-native-iap";
 import { Platform } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { setPremium } from "./adService";
 
 const REMOVE_ADS_KEY = "REMOVE_ADS_V1";
-export const PRODUCT_IDS = ["tabu_reklamsiz"];
+export const PRODUCT_IDS = ["tabu_reklamsiz"]; // non-consumable (remove ads)
 
 let purchaseUpdateSub = null;
 let purchaseErrorSub = null;
@@ -13,13 +23,11 @@ let iapInited = false;
 const processedTokens = new Set();
 let busy = false;
 
-// Yerel hafızadan reklam durumunu oku
 export async function getLocalRemoveAds() {
     const v = await AsyncStorage.getItem(REMOVE_ADS_KEY);
     return v === "1";
 }
 
-// Reklam durumunu hem yerel hafızaya hem reklam servisine kaydet
 export async function setLocalRemoveAds(enabled) {
     await AsyncStorage.setItem(REMOVE_ADS_KEY, enabled ? "1" : "0");
     try {
@@ -29,31 +37,28 @@ export async function setLocalRemoveAds(enabled) {
     }
 }
 
-// Market bağlantısını başlat ve dinleyicileri kur
 export async function initIAP() {
     if (iapInited) return true;
 
     try {
-        const ok = await RNIap.initConnection();
+        const ok = await initConnection();
         console.log("[RN-IAP] Connection initialized:", ok);
 
-        // Android'de bekleyen hatalı işlemleri temizle (Fonksiyon kontrolü ile)
-        if (Platform.OS === 'android') {
+        if (Platform.OS === "android") {
             try {
-                if (typeof RNIap.flushFailedPurchasesCachedAsPendingAndroid === 'function') {
-                    await RNIap.flushFailedPurchasesCachedAsPendingAndroid();
+                if (typeof flushFailedPurchasesCachedAsPendingAndroid === "function") {
+                    await flushFailedPurchasesCachedAsPendingAndroid();
                 }
             } catch (e) {
-                console.log("[RN-IAP] Android flush skip or not supported");
+                console.log("[RN-IAP] Android flush skip:", e?.message || e);
             }
         }
 
-        // Eski dinleyicileri temizle
+        // remove old listeners if any
         purchaseUpdateSub?.remove?.();
         purchaseErrorSub?.remove?.();
 
-        // Satın alma başarılı olduğunda tetiklenir
-        purchaseUpdateSub = RNIap.purchaseUpdatedListener(async (purchase) => {
+        purchaseUpdateSub = purchaseUpdatedListener(async (purchase) => {
             try {
                 if (!purchase) return;
 
@@ -62,22 +67,22 @@ export async function initIAP() {
                     purchase.transactionId ||
                     purchase.originalTransactionIdentifierIOS;
 
+                // de-dupe within app session
                 if (token && processedTokens.has(token)) return;
                 if (token) processedTokens.add(token);
 
-                if (purchase.productId === "tabu_reklamsiz") {
+                if (purchase.productId === PRODUCT_IDS[0]) {
                     await setLocalRemoveAds(true);
                 }
 
-                // İşlemi market tarafında başarıyla sonlandır (Önemli)
-                await RNIap.finishTransaction({ purchase, isConsumable: false });
+                // non-consumable
+                await finishTransaction({ purchase, isConsumable: false });
             } catch (e) {
-                console.log("[RN-IAP] purchaseUpdate error:", e.message);
+                console.log("[RN-IAP] purchaseUpdate error:", e?.message || e);
             }
         });
 
-        // Satın alma hatası olduğunda tetiklenir
-        purchaseErrorSub = RNIap.purchaseErrorListener((err) => {
+        purchaseErrorSub = purchaseErrorListener((err) => {
             console.log("[RN-IAP] purchaseError:", err?.message || err);
         });
 
@@ -85,85 +90,89 @@ export async function initIAP() {
         return ok;
     } catch (e) {
         iapInited = false;
-        console.log("[RN-IAP] initIAP connection error:", e.message);
-        throw new Error("Market bağlantısı kurulamadı. Lütfen internetinizi kontrol edin.");
+        console.log("[RN-IAP] initIAP connection error:", e?.message || e);
+        throw new Error("Market bağlantısı kurulamadı.");
     }
 }
 
-// Marketten ürün bilgilerini (fiyat vb.) çek
 export async function getProducts() {
     try {
         if (!iapInited) await initIAP();
 
-        // v14+ için en güncel ürün çekme yöntemi
-        const products = await RNIap.getProducts({ skus: PRODUCT_IDS });
+        // v14 unified API
+        const products = await fetchProducts({
+            skus: PRODUCT_IDS,
+            type: "in-app", // non-consumable / in-app product
+        });
+
+        console.log("[RN-IAP] Products fetched:", products?.length || 0);
         return products || [];
     } catch (e) {
-        console.log("[RN-IAP] getProducts error:", e.message);
+        console.log("[RN-IAP] getProducts error:", e?.message || e);
         return [];
     }
 }
 
-// Satın alma işlemini başlat
 export async function buyRemoveAds() {
     if (busy) return false;
     busy = true;
 
     const sku = PRODUCT_IDS[0];
+
     try {
         if (!iapInited) await initIAP();
 
-        // Hem iOS hem Android için ortak parametre yapısı
-        await RNIap.requestPurchase({
-            sku: sku,
-            andoid: { skus: [sku] }, // Android için
-            ios: {
-                sku: sku,
-                andIncludeIntermediateReceiptIOS: true
-            } // iOS için
+        // v14 unified API
+        await requestPurchase({
+            request: {
+                apple: { sku },
+                google: { skus: [sku] },
+            },
+            type: "in-app",
         });
 
         return true;
     } catch (e) {
-        // Kullanıcı iptal ettiyse hata verme
-        if (e?.code === 'E_USER_CANCELLED' || e?.message?.toLowerCase().includes('cancelled')) {
+        // user cancelled
+        const msg = (e?.message || "").toLowerCase();
+        if (e?.code === "E_USER_CANCELLED" || msg.includes("cancel")) {
             return false;
         }
-        throw new Error(e?.message || "Satın alma işlemi başlatılamadı.");
+        throw new Error(e?.message || "Satın alma başlatılamadı.");
     } finally {
         busy = false;
     }
 }
 
-// Daha önce satın alınmış ürünleri geri yükle
 export async function restoreRemoveAds() {
     try {
         if (!iapInited) await initIAP();
 
-        // iOS'ta 'restorePurchases' kullanımı Apple politikaları gereği daha sağlıklıdır
-        const purchases = Platform.OS === 'ios'
-            ? await RNIap.restorePurchases()
-            : await RNIap.getAvailablePurchases();
+        // v14: use getAvailablePurchases on both iOS/Android
+        const purchases = await getAvailablePurchases();
 
         const hasRemoveAds = (purchases || []).some(
-            (p) => p.productId === "tabu_reklamsiz"
+            (p) => p.productId === PRODUCT_IDS[0]
         );
 
         await setLocalRemoveAds(!!hasRemoveAds);
         return !!hasRemoveAds;
     } catch (e) {
-        console.log("[RN-IAP] restore error:", e.message);
-        throw new Error("Satın alımlarınız geri yüklenemedi. Lütfen daha sonra tekrar deneyin.");
+        console.log("[RN-IAP] restore error:", e?.message || e);
+        throw new Error("Geri yükleme işlemi başarısız oldu.");
     }
 }
 
-// Bağlantıyı kes (Uygulama kapanırken vb.)
 export async function endIAP() {
     purchaseUpdateSub?.remove?.();
     purchaseErrorSub?.remove?.();
     processedTokens.clear();
+
     try {
-        await RNIap.endConnection();
-    } catch { }
+        await endConnection();
+    } catch (e) {
+        // ignore
+    }
+
     iapInited = false;
 }

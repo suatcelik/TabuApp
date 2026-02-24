@@ -9,7 +9,8 @@ import mobileAds, {
 
 const TOTAL_GAMES_KEY = "TOTAL_GAMES_V1";
 const AD_COUNTER_KEY = "AD_COUNTER_V1";
-const PREMIUM_KEY = "IS_PREMIUM_V1";
+// ✅ DÜZELTME: iapService.js ile senkron çalışması için anahtar ismi eşitlendi
+const PREMIUM_KEY = "REMOVE_ADS_V1";
 
 const FREE_GAMES = 3;
 const SHOW_EVERY = 3;
@@ -148,6 +149,7 @@ export async function checkAndShowAd(onClosed) {
   const total = Number(totalRaw || 0) + 1;
   await AsyncStorage.setItem(TOTAL_GAMES_KEY, String(total));
 
+  // ✅ DÜZELTME: İlk 3 oyun bedava (reklam yok, sadece yükle)
   if (total <= FREE_GAMES) {
     preloadInterstitial();
     return false;
@@ -156,7 +158,8 @@ export async function checkAndShowAd(onClosed) {
   const counterRaw = await AsyncStorage.getItem(AD_COUNTER_KEY);
   let counter = Number(counterRaw || 0) + 1;
 
-  if (counter >= SHOW_EVERY) {
+  // ✅ DÜZELTME: 4. oyunda (FREE_GAMES + 1) veya sayaç her 3'e ulaştığında reklam göster
+  if (counter >= SHOW_EVERY || total === FREE_GAMES + 1) {
     await AsyncStorage.setItem(AD_COUNTER_KEY, "0");
 
     if (isLoaded && interstitial) {
@@ -187,7 +190,8 @@ async function isPremium() {
 
   try {
     const v = await AsyncStorage.getItem(PREMIUM_KEY);
-    isPremiumCache = v === "true";
+    // Artık REMOVE_ADS_KEY ile eşleştiği için değeri "1" veya "0" olarak okumalıyız
+    isPremiumCache = (v === "1" || v === "true");
     return isPremiumCache;
   } catch {
     isPremiumCache = false;
@@ -197,7 +201,8 @@ async function isPremium() {
 
 export async function setPremium(value) {
   isPremiumCache = !!value;
-  await AsyncStorage.setItem(PREMIUM_KEY, value ? "true" : "false");
+  // iapService.js tarafında "1" ve "0" kullanıldığı için tutarlılık adına "1" ve "0" olarak yazıyoruz
+  await AsyncStorage.setItem(PREMIUM_KEY, value ? "1" : "0");
 
   if (isPremiumCache) {
     onAdClosedAction = null;

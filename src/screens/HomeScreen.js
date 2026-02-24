@@ -16,6 +16,9 @@ import { Ionicons } from "@expo/vector-icons";
 import useGameStore from "../store/useGameStore";
 import Svg, { Path, Text as SvgText, TextPath } from "react-native-svg";
 
+// ✅ DÜZELTME: IAP servisi import edildi
+import { initIAP } from "../services/iapService";
+
 export default function HomeScreen({ navigation }) {
     // Store'dan verileri ve güncelleme fonksiyonunu alıyoruz
     const settings = useGameStore((s) => s.settings);
@@ -25,6 +28,9 @@ export default function HomeScreen({ navigation }) {
     const [showCurvedTitle, setShowCurvedTitle] = useState(false);
 
     useEffect(() => {
+        // ✅ DÜZELTME: Uygulama açılışında market dinleyicilerini başlat (Yarım kalan satın alımları yakalar)
+        initIAP().catch((e) => console.log("Açılış IAP Başlatma Hatası:", e));
+
         const task = InteractionManager.runAfterInteractions(() => {
             setShowCurvedTitle(true);
         });
