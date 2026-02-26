@@ -13,21 +13,17 @@ import {
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Ionicons } from "@expo/vector-icons";
 import { SafeAreaView } from "react-native-safe-area-context";
-
 import { useAudioPlayer } from "expo-audio";
 
-// Servisler
 import { loadWordsOfflineFirst, clearWordsCache } from "../services/wordService";
 import { gameReducer, initialState } from "../reducers/gameReducer";
 import { saveScore } from "../services/leaderboardService";
 import { logRoundEnd } from "../services/analyticsService";
 import useGameStore from "../store/useGameStore";
 
-// --- SABİTLER ---
 const LAST_FIRST_WORD_KEY = "LAST_FIRST_WORD_V1";
+// Varsayılan kart renkleri
 const CARD_COLORS = ["bg-fuchsia-700", "bg-amber-400", "bg-sky-500", "bg-red-600"];
-
-// --- YARDIMCI FONKSİYONLAR ---
 
 const shuffleWords = (words) => {
   const arr = [...words];
@@ -60,24 +56,19 @@ const ensureDifferentFirstWord = async (words) => {
 };
 
 export default function GameScreen({ navigation }) {
-  // Reducer ve State
   const [state, dispatch] = useReducer(gameReducer, initialState);
   const [fetchError, setFetchError] = useState(null);
 
-  // Store Bağlantısı
   const settings = useGameStore((s) => s.settings);
   const setFinalScores = useGameStore((s) => s.setFinalScores);
 
-  // Ses Oynatıcılar
   const successPlayer = useAudioPlayer(require("../../assets/success.mp3"));
   const errorPlayer = useAudioPlayer(require("../../assets/error.mp3"));
   const tickSlowPlayer = useAudioPlayer(require("../../assets/tick_slow.mp3"));
 
-  // Referanslar
   const intervalRef = useRef(null);
   const hasPlayedTickRef = useRef(false);
 
-  // Ses Çalma
   const playSound = (type) => {
     try {
       if (type === "SUCCESS") {
@@ -103,27 +94,18 @@ export default function GameScreen({ navigation }) {
     } catch (_) { }
   };
 
-  // 1. OYUN BAŞLATMA
   const initGame = useCallback(async () => {
     try {
       setFetchError(null);
-
-      // Kelimeleri getir
       const { words } = await loadWordsOfflineFirst(200);
-
       const list = Array.isArray(words) ? words : [];
       let shuffled = shuffleWords(list);
-
       shuffled = await ensureDifferentFirstWord(shuffled);
-
       dispatch({ type: "SET_WORDS", payload: shuffled });
-
       if (shuffled.length > 0) {
         AsyncStorage.setItem(LAST_FIRST_WORD_KEY, shuffled[0]?.targetWord || "").catch(() => { });
       }
-
     } catch (e) {
-      console.log("Game Init Error:", e);
       setFetchError("Bağlantı hatası veya kelimeler yüklenemedi.");
       dispatch({ type: "SET_WORDS", payload: [] });
     }
@@ -131,12 +113,9 @@ export default function GameScreen({ navigation }) {
 
   useEffect(() => {
     initGame();
-    return () => {
-      if (intervalRef.current) clearInterval(intervalRef.current);
-    };
+    return () => { if (intervalRef.current) clearInterval(intervalRef.current); };
   }, [initGame]);
 
-  // 2. AYARLARI GÜNCELLE
   useEffect(() => {
     if (!settings) return;
     dispatch({
@@ -149,7 +128,6 @@ export default function GameScreen({ navigation }) {
     });
   }, [settings]);
 
-  // 3. GERİ TUŞU KORUMASI (DÜZELTİLDİ: Oyunun devam etme sorunu çözüldü)
   useEffect(() => {
     const onBackPress = () => {
       if (!state.isGameOver) {
@@ -162,17 +140,11 @@ export default function GameScreen({ navigation }) {
               text: "Çık",
               style: "destructive",
               onPress: () => {
-                // ✅ KRİTİK DÜZELTME: Timer'ı manuel olarak hemen durdur
                 if (intervalRef.current) {
                   clearInterval(intervalRef.current);
                   intervalRef.current = null;
                 }
-
-                // ✅ KRİTİK DÜZELTME: Sesleri durdur
                 stopTickSlow();
-
-                // ✅ KRİTİK DÜZELTME: Stack'i temizleyerek çık (popToTop)
-                // navigate("Home") yerine popToTop kullanarak ekranı öldürüyoruz
                 if (navigation.canGoBack()) {
                   navigation.popToTop();
                 } else {
@@ -184,40 +156,26 @@ export default function GameScreen({ navigation }) {
         );
         return true;
       }
-      // Oyun bittiyse normal geri çalışsın
       return false;
     };
-
     const subscription = BackHandler.addEventListener("hardwareBackPress", onBackPress);
-
-    return () => {
-      subscription.remove();
-    };
+    return () => subscription.remove();
   }, [state.isGameOver, navigation]);
 
-  // 4. ZAMANLAYICI
   useEffect(() => {
     if (!state.isActive) {
       if (intervalRef.current) clearInterval(intervalRef.current);
       intervalRef.current = null;
       return;
     }
-
-    // Varsa temizle
     if (intervalRef.current) clearInterval(intervalRef.current);
-
-    // Yeni başlat
-    intervalRef.current = setInterval(() => {
-      dispatch({ type: "TICK" });
-    }, 1000);
-
+    intervalRef.current = setInterval(() => { dispatch({ type: "TICK" }); }, 1000);
     return () => {
       if (intervalRef.current) clearInterval(intervalRef.current);
       intervalRef.current = null;
     };
   }, [state.isActive]);
 
-  // 5. SON SANİYE SESİ
   useEffect(() => {
     if (!state.isActive || state.timeLeft <= 0) {
       hasPlayedTickRef.current = false;
@@ -229,12 +187,10 @@ export default function GameScreen({ navigation }) {
     }
   }, [state.isActive, state.timeLeft]);
 
-  // 6. TUR SONU
   useEffect(() => {
     if (state.timeLeft === 0 && state.isActive === false && !state.isGameOver) {
       const teamScore = state.activeTeam === "A" ? state.teamAScore : state.teamBScore;
       logRoundEnd(state.activeTeam, teamScore);
-
       dispatch({
         type: "NEXT_ROUND",
         payload: {
@@ -246,13 +202,9 @@ export default function GameScreen({ navigation }) {
     }
   }, [state.timeLeft, state.isActive, state.isGameOver, state.activeTeam, settings]);
 
-  // 7. OYUN BİTTİ
   useEffect(() => {
     if (!state.isGameOver) return;
-
     let cancelled = false;
-
-    // Timer'ı durdur
     if (intervalRef.current) clearInterval(intervalRef.current);
     intervalRef.current = null;
 
@@ -276,30 +228,11 @@ export default function GameScreen({ navigation }) {
     };
   }, [state.isGameOver, state.teamAScore, state.teamBScore, navigation, setFinalScores]);
 
-  // --- AKSİYONLAR ---
-  const onCorrect = () => {
-    if (!state.isActive) return;
-    dispatch({ type: "SUCCESS" });
-    playSound("SUCCESS");
-  };
+  const onCorrect = () => { if (!state.isActive) return; dispatch({ type: "SUCCESS" }); playSound("SUCCESS"); };
+  const onTaboo = () => { if (!state.isActive) return; dispatch({ type: "TABOO" }); playSound("ERROR"); };
+  const onPass = () => { if (!state.isActive) return; dispatch({ type: "PASS" }); };
+  const startNextTurn = () => { hasPlayedTickRef.current = false; dispatch({ type: "START_TURN" }); };
 
-  const onTaboo = () => {
-    if (!state.isActive) return;
-    dispatch({ type: "TABOO" });
-    playSound("ERROR");
-  };
-
-  const onPass = () => {
-    if (!state.isActive) return;
-    dispatch({ type: "PASS" });
-  };
-
-  const startNextTurn = () => {
-    hasPlayedTickRef.current = false;
-    dispatch({ type: "START_TURN" });
-  };
-
-  // --- RENDER ---
   if (state.loading && !state.words?.length && !fetchError) {
     return (
       <View className="flex-1 justify-center items-center bg-white">
@@ -311,7 +244,6 @@ export default function GameScreen({ navigation }) {
 
   const currentWord = state.words?.[state.currentIndex];
   const activeTeamName = state.activeTeam === "A" ? settings?.teamAName : settings?.teamBName;
-
   const prevTeam = state.activeTeam === "A" ? "B" : "A";
   const prevTeamName = prevTeam === "A" ? settings?.teamAName : settings?.teamBName;
   const prevTeamScore = prevTeam === "A" ? state.teamAScore : state.teamBScore;
@@ -319,21 +251,95 @@ export default function GameScreen({ navigation }) {
   const timer = state.timeLeft || 0;
   const mm = Math.floor(timer / 60);
   const ss = timer % 60 < 10 ? `0${timer % 60}` : timer % 60;
-
   const totalRounds = state.roundsPerTeam ?? settings?.roundsPerTeam ?? 4;
   const roundLabel = `${state.roundNumber ?? 1}/${totalRounds}`;
+
+  // YENİ TEMA RENDER FONKSİYONU
+  const renderThemeBackground = () => {
+    const theme = settings?.selectedTheme || 'default';
+
+    // Ekrana rastgele dağılmış ikonlar (Pattern efekti)
+    const IconPattern = ({ color, opacity = 0.1 }) => (
+      <View className="absolute top-0 left-0 right-0 bottom-0 overflow-hidden" style={{ opacity }} pointerEvents="none">
+        <Ionicons name="ban" size={120} color={color} style={{ position: 'absolute', top: -20, left: -20, transform: [{ rotate: '-15deg' }] }} />
+        <Ionicons name="chatbubbles" size={100} color={color} style={{ position: 'absolute', top: 40, right: -10, transform: [{ rotate: '10deg' }] }} />
+        <Ionicons name="hourglass" size={140} color={color} style={{ position: 'absolute', top: '40%', left: -30, transform: [{ rotate: '25deg' }] }} />
+        <Ionicons name="mic" size={110} color={color} style={{ position: 'absolute', top: '60%', right: -20, transform: [{ rotate: '-20deg' }] }} />
+        <Ionicons name="volume-mute" size={130} color={color} style={{ position: 'absolute', bottom: -30, left: '30%', transform: [{ rotate: '5deg' }] }} />
+      </View>
+    );
+
+    if (theme === 'neon_shhh') {
+      return (
+        <View className="absolute top-0 left-0 right-0 bottom-0 bg-slate-900" pointerEvents="none">
+          <View className="absolute -top-10 -left-10 w-80 h-80 rounded-full bg-cyan-500/20" />
+          <View className="absolute -bottom-16 -right-16 w-80 h-80 rounded-full bg-fuchsia-600/20" />
+          <IconPattern color="#22d3ee" opacity={0.15} />
+        </View>
+      );
+    } else if (theme === 'retro_buzz') {
+      return (
+        <View className="absolute top-0 left-0 right-0 bottom-0 bg-orange-50" pointerEvents="none">
+          <View className="absolute -top-10 -left-10 w-96 h-96 rounded-full bg-amber-200/40" />
+          <View className="absolute -bottom-10 -right-10 w-96 h-96 rounded-full bg-orange-300/30" />
+          <IconPattern color="#f59e0b" opacity={0.2} />
+        </View>
+      );
+    } else if (theme === 'golden_victory') {
+      return (
+        <View className="absolute top-0 left-0 right-0 bottom-0 bg-zinc-900" pointerEvents="none">
+          <View className="absolute top-0 left-0 right-0 bottom-0 bg-yellow-900/10" />
+          <IconPattern color="#eab308" opacity={0.15} />
+        </View>
+      );
+    } else if (theme === 'pixel_guesser') {
+      return (
+        <View className="absolute top-0 left-0 right-0 bottom-0 bg-emerald-50" pointerEvents="none">
+          <View className="absolute top-1/4 -left-10 w-64 h-64 rounded-xl bg-emerald-200/50 transform rotate-12" />
+          <View className="absolute bottom-1/4 -right-10 w-64 h-64 rounded-xl bg-teal-200/50 transform -rotate-12" />
+          <IconPattern color="#10b981" opacity={0.15} />
+        </View>
+      );
+    } else if (theme === 'graffiti_shhh') {
+      return (
+        <View className="absolute top-0 left-0 right-0 bottom-0 bg-rose-50" pointerEvents="none">
+          <View className="absolute -top-10 -left-10 w-80 h-80 rounded-full bg-rose-200/50" />
+          <View className="absolute -bottom-16 -right-16 w-80 h-80 rounded-full bg-pink-200/50" />
+          <IconPattern color="#e11d48" opacity={0.15} />
+        </View>
+      );
+    }
+
+    // Default (Klasik Parti)
+    return (
+      <View className="absolute top-0 left-0 right-0 bottom-0 bg-slate-50" pointerEvents="none">
+        <View className="absolute -top-10 -left-10 w-80 h-80 rounded-full bg-fuchsia-200/40" />
+        <View className="absolute top-1/3 -right-16 w-[350px] h-[350px] rounded-full bg-sky-200/30" />
+        <View className="absolute -bottom-16 -left-16 w-80 h-80 rounded-full bg-amber-100/40" />
+        <IconPattern color="#94a3b8" opacity={0.05} />
+      </View>
+    );
+  };
+
+  // Karanlık mod seçildiyse ana metinlerin renklerini belirginleştirebilirsiniz
+  const isDarkTheme = settings?.selectedTheme === 'neon_shhh' || settings?.selectedTheme === 'golden_victory';
+  const textColor = isDarkTheme ? "text-slate-100" : "text-slate-800";
+  const mutedTextColor = isDarkTheme ? "text-slate-400" : "text-slate-500";
 
   const currentColor = CARD_COLORS[(state.currentIndex ?? 0) % CARD_COLORS.length];
   const headerTextColor = currentColor === "bg-amber-400" ? "text-slate-900" : "text-white";
 
   return (
-    <SafeAreaView className="flex-1 bg-slate-50">
-      <StatusBar barStyle="dark-content" />
+    <SafeAreaView className={`flex-1 ${isDarkTheme ? 'bg-slate-900' : 'bg-slate-50'}`}>
+      <StatusBar barStyle={isDarkTheme ? "light-content" : "dark-content"} />
+
+      {/* ARKAPLAN TEMA ÇİZİMİ */}
+      {renderThemeBackground()}
 
       {/* Üst Bilgi */}
-      <View className="flex-row justify-between items-center px-6 py-4 bg-white shadow-sm">
+      <View className={`flex-row justify-between items-center px-6 py-4 shadow-sm z-10 ${isDarkTheme ? 'bg-slate-800/80' : 'bg-white/80'}`}>
         <View className="items-center flex-1">
-          <Text className="text-slate-400 text-[10px] font-bold uppercase" numberOfLines={1}>
+          <Text className={`${mutedTextColor} text-[10px] font-bold uppercase`} numberOfLines={1}>
             {activeTeamName}
           </Text>
           <Text className="text-sky-500 text-3xl font-black">
@@ -348,20 +354,20 @@ export default function GameScreen({ navigation }) {
               {mm}:{ss}
             </Text>
           </View>
-          <Text className="text-slate-400 text-[10px] font-bold uppercase mt-2">
+          <Text className={`${mutedTextColor} text-[10px] font-bold uppercase mt-2`}>
             TUR {roundLabel}
           </Text>
         </View>
 
         <View className="items-center flex-1">
-          <Text className="text-slate-400 text-[10px] font-bold uppercase">Pas</Text>
+          <Text className={`${mutedTextColor} text-[10px] font-bold uppercase`}>Pas</Text>
           <Text className="text-amber-400 text-3xl font-black">{state.passCount}</Text>
         </View>
       </View>
 
       {/* Kart */}
-      <View className="flex-1 justify-center px-8">
-        <View className="bg-white rounded-[45px] shadow-2xl overflow-hidden border border-slate-100">
+      <View className="flex-1 justify-center px-8 z-10">
+        <View className={`rounded-[45px] shadow-2xl overflow-hidden border ${isDarkTheme ? 'bg-slate-800 border-slate-700 shadow-slate-900' : 'bg-white border-slate-100'}`}>
           <View className={`${currentColor} py-10 items-center`}>
             <Text className={`${headerTextColor} text-4xl font-black uppercase tracking-tighter text-center px-4`}>
               {currentWord?.targetWord ?? "—"}
@@ -371,11 +377,11 @@ export default function GameScreen({ navigation }) {
           <View className="py-10 items-center">
             {(currentWord?.forbiddenWords ?? []).map((word, index) => (
               <View key={`${word}-${index}`} className="py-2 w-full items-center">
-                <Text className="text-slate-600 text-2xl font-bold uppercase tracking-tight">
+                <Text className={`${textColor} text-2xl font-bold uppercase tracking-tight`}>
                   {word}
                 </Text>
                 {index < (currentWord?.forbiddenWords?.length ?? 0) - 1 && (
-                  <View className="w-1/2 h-[1px] bg-slate-100 mt-2" />
+                  <View className={`w-1/2 h-[1px] mt-2 ${isDarkTheme ? 'bg-slate-700' : 'bg-slate-100'}`} />
                 )}
               </View>
             ))}
@@ -384,7 +390,7 @@ export default function GameScreen({ navigation }) {
       </View>
 
       {/* Butonlar */}
-      <View className="flex-row px-6 pb-10 gap-4">
+      <View className="flex-row px-6 pb-10 gap-4 z-10">
         <TouchableOpacity
           className="flex-1 bg-fuchsia-700 h-24 rounded-3xl items-center justify-center shadow-lg shadow-rose-200 active:scale-95"
           onPress={onTaboo}
@@ -400,7 +406,7 @@ export default function GameScreen({ navigation }) {
           disabled={!state.isActive}
         >
           <Ionicons name="refresh-circle" size={32} color="white" />
-          <Text className="text-white font-black uppercase mt-1 ">Pas</Text>
+          <Text className="text-white font-black uppercase mt-1">Pas</Text>
         </TouchableOpacity>
 
         <TouchableOpacity

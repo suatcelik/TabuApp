@@ -13,8 +13,6 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import useGameStore from "../store/useGameStore";
-
-// ✅ IAP servisi
 import { initIAP } from "../services/iapService";
 
 export default function HomeScreen({ navigation }) {
@@ -39,22 +37,13 @@ export default function HomeScreen({ navigation }) {
                 behavior={Platform.OS === "ios" ? "padding" : "height"}
                 style={{ flex: 1 }}
             >
-                {/* Dört Renkli Belirgin Arka Plan (Fuşya, Mavi, Amber ve Kırmızı) */}
                 <View className="absolute top-0 left-0 right-0 bottom-0 overflow-hidden" pointerEvents="none">
-
-                    {/* Sol Üst - Yoğun Fuşya Odak */}
                     <View className="absolute -top-10 -left-10 w-80 h-80 rounded-full bg-fuchsia-200/60" />
                     <View className="absolute -top-5 -left-5 w-56 h-56 rounded-full bg-fuchsia-300/40" />
-
-                    {/* Sağ Üst - Belirgin Kırmızı/Rose Odak (YENİ) */}
                     <View className="absolute -top-10 -right-10 w-72 h-72 rounded-full bg-rose-200/50" />
                     <View className="absolute top-0 right-0 w-48 h-48 rounded-full bg-rose-300/30" />
-
-                    {/* Sağ Orta - Belirgin Mavi Odak */}
                     <View className="absolute top-1/3 -right-16 w-[350px] h-[350px] rounded-full bg-sky-200/50" />
                     <View className="absolute top-1/2 -right-10 w-64 h-64 rounded-full bg-sky-300/30" />
-
-                    {/* Alt Sol - Sıcak Amber Odak */}
                     <View className="absolute -bottom-16 -left-16 w-80 h-80 rounded-full bg-amber-100/70" />
                     <View className="absolute -bottom-10 -left-10 w-56 h-56 rounded-full bg-amber-200/40" />
                 </View>
@@ -65,8 +54,6 @@ export default function HomeScreen({ navigation }) {
                     keyboardShouldPersistTaps="handled"
                 >
                     <View className="flex-1 justify-center items-center px-8 py-10">
-
-                        {/* Logo */}
                         <View className="items-center justify-center pt-16">
                             <Image
                                 source={require("../../assets/logo.png")}
@@ -76,7 +63,6 @@ export default function HomeScreen({ navigation }) {
                             />
                         </View>
 
-                        {/* Takım Düzenleme Alanı */}
                         <View className="w-full mt-16 bg-white/90 p-6 rounded-[35px] border border-slate-800 shadow-xl shadow-slate-800">
                             <Text className="text-slate-500 text-center font-bold uppercase tracking-widest text-[10px] mb-4">
                                 Takım İsimlerini Düzenle
@@ -123,6 +109,17 @@ export default function HomeScreen({ navigation }) {
                             </Text>
                         </TouchableOpacity>
 
+                        {/* YENİ EKLENEN MAĞAZA BUTONU */}
+                        <TouchableOpacity
+                            className="bg-amber-400 py-5 rounded-3xl border border-amber-500 flex-row justify-center items-center active:scale-95 mb-4 shadow-lg shadow-amber-200"
+                            onPress={() => navigation.navigate("Store")}
+                        >
+                            <Ionicons name="cart" size={24} color="white" />
+                            <Text className="text-white text-xl font-black uppercase tracking-widest ml-3">
+                                MAĞAZA & TEMALAR
+                            </Text>
+                        </TouchableOpacity>
+
                         <TouchableOpacity
                             className="bg-white/80 py-5 rounded-3xl border border-slate-800 flex-row justify-center items-center active:bg-slate-100"
                             onPress={() => navigation.navigate("Settings")}
@@ -134,7 +131,7 @@ export default function HomeScreen({ navigation }) {
                         </TouchableOpacity>
 
                         <Text className="text-center text-slate-400 text-[10px] mt-6 font-bold uppercase tracking-widest">
-                            v1.1.4
+                            v1.2.0
                         </Text>
                     </View>
                 </ScrollView>

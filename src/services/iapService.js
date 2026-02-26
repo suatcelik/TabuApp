@@ -1,4 +1,3 @@
-// src/services/iapService.js
 import {
     initConnection,
     endConnection,
@@ -13,9 +12,15 @@ import {
 import { Platform } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { setPremium } from "./adService";
+import useGameStore from "../store/useGameStore";
 
 const REMOVE_ADS_KEY = "REMOVE_ADS_V1";
-export const PRODUCT_IDS = ["tabu_reklamsiz"]; // non-consumable (remove ads)
+
+// GÜNCELLENDİ: Satılacak tüm ürünlerin ID'leri (Sadece Reklamsız ve Tema Paketi)
+export const PRODUCT_IDS = [
+    "tabu_reklamsiz",
+    "tabu_tema_paketi_1" // Tüm temaları aynı anda açan paket
+];
 
 let purchaseUpdateSub = null;
 let purchaseErrorSub = null;
@@ -54,7 +59,6 @@ export async function initIAP() {
             }
         }
 
-        // remove old listeners if any
         purchaseUpdateSub?.remove?.();
         purchaseErrorSub?.remove?.();
 
@@ -62,20 +66,19 @@ export async function initIAP() {
             try {
                 if (!purchase) return;
 
-                const token =
-                    purchase.purchaseToken ||
-                    purchase.transactionId ||
-                    purchase.originalTransactionIdentifierIOS;
+                const token = purchase.purchaseToken || purchase.transactionId || purchase.originalTransactionIdentifierIOS;
 
-                // de-dupe within app session
                 if (token && processedTokens.has(token)) return;
                 if (token) processedTokens.add(token);
 
-                if (purchase.productId === PRODUCT_IDS[0]) {
+                // GÜNCELLENDİ: Hangi ürün satın alındıysa ona göre işlem yap
+                if (purchase.productId === "tabu_reklamsiz") {
                     await setLocalRemoveAds(true);
+                } else if (purchase.productId === "tabu_tema_paketi_1") {
+                    // Tema paketi alındıysa Store'daki kilidi aç
+                    useGameStore.getState().unlockThemeBundle();
                 }
 
-                // non-consumable
                 await finishTransaction({ purchase, isConsumable: false });
             } catch (e) {
                 console.log("[RN-IAP] purchaseUpdate error:", e?.message || e);
@@ -90,7 +93,6 @@ export async function initIAP() {
         return ok;
     } catch (e) {
         iapInited = false;
-        console.log("[RN-IAP] initIAP connection error:", e?.message || e);
         throw new Error("Market bağlantısı kurulamadı.");
     }
 }
@@ -98,31 +100,22 @@ export async function initIAP() {
 export async function getProducts() {
     try {
         if (!iapInited) await initIAP();
-
-        // v14 unified API
         const products = await fetchProducts({
             skus: PRODUCT_IDS,
-            type: "in-app", // non-consumable / in-app product
+            type: "in-app",
         });
-
-        console.log("[RN-IAP] Products fetched:", products?.length || 0);
         return products || [];
     } catch (e) {
-        console.log("[RN-IAP] getProducts error:", e?.message || e);
         return [];
     }
 }
 
-export async function buyRemoveAds() {
+export async function buyProduct(sku) {
     if (busy) return false;
     busy = true;
 
-    const sku = PRODUCT_IDS[0];
-
     try {
         if (!iapInited) await initIAP();
-
-        // v14 unified API
         await requestPurchase({
             request: {
                 apple: { sku },
@@ -130,10 +123,8 @@ export async function buyRemoveAds() {
             },
             type: "in-app",
         });
-
         return true;
     } catch (e) {
-        // user cancelled
         const msg = (e?.message || "").toLowerCase();
         if (e?.code === "E_USER_CANCELLED" || msg.includes("cancel")) {
             return false;
@@ -144,35 +135,40 @@ export async function buyRemoveAds() {
     }
 }
 
-export async function restoreRemoveAds() {
+// Geriye dönük uyumluluk için eski fonksiyon adını koruyalım
+export const buyRemoveAds = () => buyProduct("tabu_reklamsiz");
+
+export async function restorePurchases() {
     try {
         if (!iapInited) await initIAP();
-
-        // v14: use getAvailablePurchases on both iOS/Android
         const purchases = await getAvailablePurchases();
 
-        const hasRemoveAds = (purchases || []).some(
-            (p) => p.productId === PRODUCT_IDS[0]
-        );
+        let hasRemoveAds = false;
 
-        await setLocalRemoveAds(!!hasRemoveAds);
-        return !!hasRemoveAds;
+        (purchases || []).forEach(p => {
+            if (p.productId === "tabu_reklamsiz") {
+                hasRemoveAds = true;
+            } else if (p.productId === "tabu_tema_paketi_1") {
+                // GÜNCELLENDİ: Önceden alınan tema paketini Store'a tekrar yükle (kilidi aç)
+                useGameStore.getState().unlockThemeBundle();
+            }
+        });
+
+        await setLocalRemoveAds(hasRemoveAds);
+        return hasRemoveAds;
     } catch (e) {
-        console.log("[RN-IAP] restore error:", e?.message || e);
         throw new Error("Geri yükleme işlemi başarısız oldu.");
     }
 }
+
+export const restoreRemoveAds = restorePurchases; // Geriye dönük uyumluluk
 
 export async function endIAP() {
     purchaseUpdateSub?.remove?.();
     purchaseErrorSub?.remove?.();
     processedTokens.clear();
-
     try {
         await endConnection();
-    } catch (e) {
-        // ignore
-    }
-
+    } catch (e) { }
     iapInited = false;
 }

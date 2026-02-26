@@ -12,11 +12,11 @@ import ErrorBoundary from "./src/components/ErrorBoundary";
 // ✅ Ads
 import { initAds, setPremium } from "./src/services/adService";
 
-// ✅ IAP (Remove Ads)
+// ✅ IAP (Remove Ads & Themes)
 import {
   initIAP,
   endIAP,
-  restoreRemoveAds,
+  restorePurchases,
   getLocalRemoveAds,
 } from "./src/services/iapService";
 
@@ -26,11 +26,11 @@ import GameScreen from "./src/screens/GameScreen";
 import SettingsScreen from "./src/screens/SettingsScreen";
 import ResultScreen from "./src/screens/ResultScreen";
 import PrivacyPolicyScreen from "./src/screens/PrivacyPolicyScreen";
+import StoreScreen from "./src/screens/StoreScreen"; // YENİ EKLENDİ
 
 const Stack = createNativeStackNavigator();
 
 export default function App() {
-  // ✅ ErrorBoundary reset için: komple app'i yeniden mount eder
   const [appKey, setAppKey] = React.useState(0);
 
   React.useEffect(() => {
@@ -38,30 +38,23 @@ export default function App() {
 
     (async () => {
       try {
-        // 1) IAP başlat
         await initIAP();
 
-        // 2) Restore dene (satın alma var mı?)
         let hasRemoveAds = false;
-
         try {
-          hasRemoveAds = await restoreRemoveAds();
+          hasRemoveAds = await restorePurchases(); // restoreRemoveAds yerine yeni ismi kullandık
         } catch (e) {
-          // Restore hata verirse local cache'e düş
           hasRemoveAds = await getLocalRemoveAds();
         }
 
-        // 3) Premium flag'i set et (reklam servisi için tek kaynak)
         try {
           await setPremium(!!hasRemoveAds);
         } catch { }
 
-        // 4) Premium değilse Ads init et
         if (!cancelled && !hasRemoveAds) {
           await initAds();
         }
       } catch (e) {
-        // IAP init vs hata verirse Ads init ile uygulamayı çalışır tut
         if (!cancelled) {
           try {
             await initAds();
@@ -72,7 +65,6 @@ export default function App() {
 
     return () => {
       cancelled = true;
-      // IAP cleanup
       try {
         endIAP();
       } catch { }
@@ -102,6 +94,7 @@ export default function App() {
               <Stack.Screen name="Settings" component={SettingsScreen} />
               <Stack.Screen name="Result" component={ResultScreen} />
               <Stack.Screen name="PrivacyPolicy" component={PrivacyPolicyScreen} />
+              <Stack.Screen name="Store" component={StoreScreen} />
             </Stack.Navigator>
           </NavigationContainer>
         </SafeAreaProvider>
