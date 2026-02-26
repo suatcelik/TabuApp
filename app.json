@@ -2,7 +2,7 @@
   "expo": {
     "name": "Tabu GO",
     "slug": "TabuApp",
-    "version": "1.1.2",
+    "version": "1.1.4",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
@@ -14,7 +14,7 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.arcodiba.tabuapp",
-      "buildNumber": "3",
+      "buildNumber": "4",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false
       }
@@ -25,7 +25,7 @@
         "backgroundColor": "#ffffff"
       },
       "package": "com.arcodiba.tabuapp",
-      "versionCode": 22,
+      "versionCode": 25,
       "permissions": [
         "BILLING"
       ],
