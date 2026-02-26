@@ -15,7 +15,6 @@ const BUNDLE_THEMES = [
 ];
 
 export default function StoreScreen({ navigation }) {
-    // GÜNCELLENDİ: isPremium artık Zustand'dan geliyor
     const { settings, isThemeBundlePurchased, isPremium, updateSettings } = useGameStore();
     const [loading, setLoading] = useState(false);
 
@@ -23,7 +22,6 @@ export default function StoreScreen({ navigation }) {
         setLoading(true);
         try {
             await buyProduct(productId);
-            // Başarılı olursa iapService Zustand'ı arka planda güncelleyeceği için anında Alert vermiyoruz
         } catch (error) {
             Alert.alert("Hata", error.message);
         } finally {
@@ -56,6 +54,16 @@ export default function StoreScreen({ navigation }) {
             </View>
 
             <ScrollView contentContainerStyle={{ padding: 24, paddingBottom: 60 }} showsVerticalScrollIndicator={false}>
+
+                {/* YENİ: Satın Alımları Geri Yükle Butonu (Üst Kısım) */}
+                <TouchableOpacity
+                    className="mb-6 flex-row items-center justify-center bg-white border border-slate-200 py-3 rounded-2xl shadow-sm active:bg-slate-50"
+                    onPress={handleRestore}
+                    disabled={loading}
+                >
+                    <Ionicons name="refresh-circle" size={22} color="#6366f1" />
+                    <Text className="ml-2 text-indigo-600 font-bold tracking-tight">Eski Satın Alımları Geri Yükle</Text>
+                </TouchableOpacity>
 
                 {/* 1. Kısım: Reklam Kaldırma */}
                 {!isPremium && (
@@ -131,11 +139,6 @@ export default function StoreScreen({ navigation }) {
                         );
                     })}
                 </View>
-
-                {/* Restore Butonu */}
-                <TouchableOpacity className="mt-10 py-4 items-center" onPress={handleRestore} disabled={loading}>
-                    <Text className="text-slate-400 font-bold underline">Satın Alımları Geri Yükle</Text>
-                </TouchableOpacity>
 
             </ScrollView>
 
