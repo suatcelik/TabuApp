@@ -16,8 +16,11 @@ const useGameStore = create(
                 selectedTheme: 'default', // Varsayılan aktif tema
             },
 
-            // GÜNCELLENDİ: Tema paketinin tamamı satın alındı mı?
+            // Tema paketinin tamamı satın alındı mı?
             isThemeBundlePurchased: false,
+
+            // YENİ EKLENEN: Reklamlar kaldırıldı mı (Premium)?
+            isPremium: false,
 
             // Ayarları güncelle
             updateSettings: (newSettings) => {
@@ -30,8 +33,11 @@ const useGameStore = create(
                 });
             },
 
-            // GÜNCELLENDİ: Paketin kilidini açan fonksiyon
+            // Paketin kilidini açan fonksiyon
             unlockThemeBundle: () => set({ isThemeBundlePurchased: true }),
+
+            // YENİ EKLENEN: Premium durumunu güncelleyen fonksiyon
+            setPremiumStatus: (status) => set({ isPremium: status }),
 
             // --- OYUN SONU SKORU (Kaydedilmez) ---
             finalScores: { A: 0, B: 0 },
@@ -49,10 +55,11 @@ const useGameStore = create(
         {
             name: 'GAME_SETTINGS_STORAGE',
             storage: createJSONStorage(() => AsyncStorage),
-            // GÜNCELLENDİ: isThemeBundlePurchased durumunu telefona kaydeder
+            // GÜNCELLENDİ: isPremium durumu da artık telefona kaydediliyor
             partialize: (state) => ({
                 settings: state.settings,
-                isThemeBundlePurchased: state.isThemeBundlePurchased
+                isThemeBundlePurchased: state.isThemeBundlePurchased,
+                isPremium: state.isPremium
             }),
         }
     )

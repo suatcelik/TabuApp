@@ -16,10 +16,9 @@ import useGameStore from "../store/useGameStore";
 
 const REMOVE_ADS_KEY = "REMOVE_ADS_V1";
 
-// GÜNCELLENDİ: Satılacak tüm ürünlerin ID'leri (Sadece Reklamsız ve Tema Paketi)
 export const PRODUCT_IDS = [
     "tabu_reklamsiz",
-    "tabu_tema_paketi_1" // Tüm temaları aynı anda açan paket
+    "tabu_tema_paketi_1"
 ];
 
 let purchaseUpdateSub = null;
@@ -71,11 +70,11 @@ export async function initIAP() {
                 if (token && processedTokens.has(token)) return;
                 if (token) processedTokens.add(token);
 
-                // GÜNCELLENDİ: Hangi ürün satın alındıysa ona göre işlem yap
+                // GÜNCELLENDİ: Hangi ürün satın alındıysa Zustand'ı güncelle
                 if (purchase.productId === "tabu_reklamsiz") {
                     await setLocalRemoveAds(true);
+                    useGameStore.getState().setPremiumStatus(true);
                 } else if (purchase.productId === "tabu_tema_paketi_1") {
-                    // Tema paketi alındıysa Store'daki kilidi aç
                     useGameStore.getState().unlockThemeBundle();
                 }
 
@@ -135,7 +134,6 @@ export async function buyProduct(sku) {
     }
 }
 
-// Geriye dönük uyumluluk için eski fonksiyon adını koruyalım
 export const buyRemoveAds = () => buyProduct("tabu_reklamsiz");
 
 export async function restorePurchases() {
@@ -144,24 +142,31 @@ export async function restorePurchases() {
         const purchases = await getAvailablePurchases();
 
         let hasRemoveAds = false;
+        let hasThemeBundle = false;
 
         (purchases || []).forEach(p => {
             if (p.productId === "tabu_reklamsiz") {
                 hasRemoveAds = true;
             } else if (p.productId === "tabu_tema_paketi_1") {
-                // GÜNCELLENDİ: Önceden alınan tema paketini Store'a tekrar yükle (kilidi aç)
-                useGameStore.getState().unlockThemeBundle();
+                hasThemeBundle = true;
             }
         });
 
+        // GÜNCELLENDİ: Eski satın alımları Zustand'a yükle
         await setLocalRemoveAds(hasRemoveAds);
+        useGameStore.getState().setPremiumStatus(hasRemoveAds);
+
+        if (hasThemeBundle) {
+            useGameStore.getState().unlockThemeBundle();
+        }
+
         return hasRemoveAds;
     } catch (e) {
         throw new Error("Geri yükleme işlemi başarısız oldu.");
     }
 }
 
-export const restoreRemoveAds = restorePurchases; // Geriye dönük uyumluluk
+export const restoreRemoveAds = restorePurchases;
 
 export async function endIAP() {
     purchaseUpdateSub?.remove?.();

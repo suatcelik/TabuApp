@@ -1,9 +1,9 @@
-import React, { useEffect, useState } from "react";
+import React, { useState } from "react";
 import { View, Text, TouchableOpacity, ScrollView, StatusBar, ActivityIndicator, Alert } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import useGameStore from "../store/useGameStore";
-import { buyProduct, getLocalRemoveAds, restorePurchases } from "../services/iapService";
+import { buyProduct, restorePurchases } from "../services/iapService";
 
 const BUNDLE_THEMES = [
     { id: 'default', name: 'Klasik Parti', icon: 'mic', color: 'text-fuchsia-500', bg: 'bg-fuchsia-100' },
@@ -15,27 +15,15 @@ const BUNDLE_THEMES = [
 ];
 
 export default function StoreScreen({ navigation }) {
-    const { settings, isThemeBundlePurchased, updateSettings } = useGameStore();
+    // GÜNCELLENDİ: isPremium artık Zustand'dan geliyor
+    const { settings, isThemeBundlePurchased, isPremium, updateSettings } = useGameStore();
     const [loading, setLoading] = useState(false);
-    const [isPremium, setIsPremium] = useState(false);
 
-    useEffect(() => {
-        checkPremiumStatus();
-    }, []);
-
-    const checkPremiumStatus = async () => {
-        const premium = await getLocalRemoveAds();
-        setIsPremium(premium);
-    };
-
-    const handleBuy = async (productId, successMessage, onSuccess) => {
+    const handleBuy = async (productId) => {
         setLoading(true);
         try {
-            const success = await buyProduct(productId);
-            if (success) {
-                Alert.alert("Başarılı", successMessage);
-                if (onSuccess) onSuccess();
-            }
+            await buyProduct(productId);
+            // Başarılı olursa iapService Zustand'ı arka planda güncelleyeceği için anında Alert vermiyoruz
         } catch (error) {
             Alert.alert("Hata", error.message);
         } finally {
@@ -47,7 +35,6 @@ export default function StoreScreen({ navigation }) {
         setLoading(true);
         try {
             await restorePurchases();
-            await checkPremiumStatus();
             Alert.alert("Başarılı", "Önceki satın alımlarınız geri yüklendi.");
         } catch (error) {
             Alert.alert("Hata", error.message);
@@ -74,7 +61,7 @@ export default function StoreScreen({ navigation }) {
                 {!isPremium && (
                     <TouchableOpacity
                         className="bg-amber-400 p-6 rounded-3xl shadow-xl shadow-amber-200 mb-6 flex-row items-center justify-between"
-                        onPress={() => handleBuy("tabu_reklamsiz", "Reklamlar kaldırıldı! Desteğiniz için teşekkürler.", () => setIsPremium(true))}
+                        onPress={() => handleBuy("tabu_reklamsiz")}
                         disabled={loading}
                     >
                         <View className="flex-1 pr-4">
@@ -99,7 +86,7 @@ export default function StoreScreen({ navigation }) {
                         </Text>
                         <TouchableOpacity
                             className="bg-white px-8 py-3 rounded-2xl active:scale-95 w-full items-center"
-                            onPress={() => handleBuy("tabu_tema_paketi_1", "Tema Paketi açıldı! Tüm tasarımları kullanabilirsiniz.")}
+                            onPress={() => handleBuy("tabu_tema_paketi_1")}
                             disabled={loading}
                         >
                             <Text className="text-indigo-600 font-black text-lg uppercase tracking-wider">PAKETİ SATIN AL</Text>
@@ -111,7 +98,6 @@ export default function StoreScreen({ navigation }) {
                 <Text className="text-slate-400 font-bold uppercase tracking-widest text-xs mb-4">Tasarımlar</Text>
                 <View className="gap-4">
                     {BUNDLE_THEMES.map((theme) => {
-                        // Default her zaman açıktır. Diğerleri paket alındıysa açılır.
                         const isUnlocked = theme.id === 'default' || isThemeBundlePurchased;
                         const isSelected = settings.selectedTheme === theme.id;
 
