@@ -7,13 +7,7 @@ import mobileAds, {
   TestIds,
 } from "react-native-google-mobile-ads";
 
-const TOTAL_GAMES_KEY = "TOTAL_GAMES_V1";
-const AD_COUNTER_KEY = "AD_COUNTER_V1";
-// ✅ DÜZELTME: iapService.js ile senkron çalışması için anahtar ismi eşitlendi
 const PREMIUM_KEY = "REMOVE_ADS_V1";
-
-const FREE_GAMES = 3;
-const SHOW_EVERY = 3;
 
 // =======================
 // ✅ DOĞRU PROD ID'LER
@@ -129,15 +123,7 @@ export function preloadInterstitial() {
 export async function prepareNextGameAd() {
   if (await isPremium()) return;
 
-  const totalRaw = await AsyncStorage.getItem(TOTAL_GAMES_KEY);
-  const total = Number(totalRaw || 0);
-
-  if (total < FREE_GAMES) return;
-
-  const counterRaw = await AsyncStorage.getItem(AD_COUNTER_KEY);
-  const counter = Number(counterRaw || 0);
-
-  if (counter + 1 >= SHOW_EVERY && !isLoaded && !isLoading) {
+  if (!isLoaded && !isLoading) {
     preloadInterstitial();
   }
 }
@@ -145,43 +131,22 @@ export async function prepareNextGameAd() {
 export async function checkAndShowAd(onClosed) {
   if (await isPremium()) return false;
 
-  const totalRaw = await AsyncStorage.getItem(TOTAL_GAMES_KEY);
-  const total = Number(totalRaw || 0) + 1;
-  await AsyncStorage.setItem(TOTAL_GAMES_KEY, String(total));
+  if (isLoaded && interstitial) {
+    isShowing = true;
+    onAdClosedAction = typeof onClosed === "function" ? onClosed : null;
 
-  // ✅ DÜZELTME: İlk 3 oyun bedava (reklam yok, sadece yükle)
-  if (total <= FREE_GAMES) {
-    preloadInterstitial();
-    return false;
-  }
-
-  const counterRaw = await AsyncStorage.getItem(AD_COUNTER_KEY);
-  let counter = Number(counterRaw || 0) + 1;
-
-  // ✅ DÜZELTME: 4. oyunda (FREE_GAMES + 1) veya sayaç her 3'e ulaştığında reklam göster
-  if (counter >= SHOW_EVERY || total === FREE_GAMES + 1) {
-    await AsyncStorage.setItem(AD_COUNTER_KEY, "0");
-
-    if (isLoaded && interstitial) {
-      isShowing = true;
-      onAdClosedAction = typeof onClosed === "function" ? onClosed : null;
-
-      try {
-        interstitial.show();
-        return true;
-      } catch {
-        isShowing = false;
-        onAdClosedAction = null;
-        preloadInterstitial();
-        return false;
-      }
+    try {
+      interstitial.show();
+      return true;
+    } catch {
+      isShowing = false;
+      onAdClosedAction = null;
+      preloadInterstitial();
+      return false;
     }
-
-    preloadInterstitial();
-    return false;
   }
 
-  await AsyncStorage.setItem(AD_COUNTER_KEY, String(counter));
+  preloadInterstitial();
   return false;
 }
 

@@ -18,7 +18,7 @@ export default function SettingsScreen({ navigation }) {
     const updateSettings = useGameStore((s) => s.updateSettings);
 
     // Seçenek Grupları
-    const durationOptions = [5, 60, 90, 120];
+    const durationOptions = [60, 90, 120];
     const maxPassOptions = [3, 4, 5];
     const roundsOptions = [4, 6, 8, 10];
 

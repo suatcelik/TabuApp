@@ -20,6 +20,7 @@ import { gameReducer, initialState } from "../reducers/gameReducer";
 import { saveScore } from "../services/leaderboardService";
 import { logRoundEnd } from "../services/analyticsService";
 import useGameStore from "../store/useGameStore";
+import { checkAndShowAd } from "../services/adService";
 
 const LAST_FIRST_WORD_KEY = "LAST_FIRST_WORD_V1";
 // Varsayılan kart renkleri
@@ -58,6 +59,7 @@ const ensureDifferentFirstWord = async (words) => {
 export default function GameScreen({ navigation }) {
   const [state, dispatch] = useReducer(gameReducer, initialState);
   const [fetchError, setFetchError] = useState(null);
+  const [isProcessingTurn, setIsProcessingTurn] = useState(false);
 
   const settings = useGameStore((s) => s.settings);
   const setFinalScores = useGameStore((s) => s.setFinalScores);
@@ -247,9 +249,27 @@ export default function GameScreen({ navigation }) {
     if (!state.isActive) return;
     dispatch({ type: "PASS" });
   };
-  const startNextTurn = () => {
+
+  const startNextTurn = async () => {
+    if (isProcessingTurn) return;
     hasPlayedTickRef.current = false;
-    dispatch({ type: "START_TURN" });
+
+    // Her 2 tam raundun sonunda (Yani 4 tur oynandığında: A1, B1, A2, B2)
+    // Sıra tekrar A takımına geldiğinde ve raund sayısı 1'den büyük ve tek sayı olduğunda (3, 5, 7. raund başlangıçları)
+    if (state.activeTeam === "A" && state.roundNumber > 1 && state.roundNumber % 2 !== 0) {
+      setIsProcessingTurn(true);
+      const didShow = await checkAndShowAd(() => {
+        dispatch({ type: "START_TURN" });
+        setIsProcessingTurn(false);
+      });
+
+      if (!didShow) {
+        dispatch({ type: "START_TURN" });
+        setIsProcessingTurn(false);
+      }
+    } else {
+      dispatch({ type: "START_TURN" });
+    }
   };
 
   if (state.loading && !state.words?.length && !fetchError) {
@@ -548,10 +568,15 @@ export default function GameScreen({ navigation }) {
             <TouchableOpacity
               className="bg-red-500 w-full py-6 rounded-3xl shadow-xl active:bg-indigo-700 active:scale-95"
               onPress={startNextTurn}
+              disabled={isProcessingTurn}
             >
-              <Text className="text-white font-black text-center text-xl uppercase tracking-widest">
-                {activeTeamName} BAŞLASIN!
-              </Text>
+              {isProcessingTurn ? (
+                <ActivityIndicator color="white" size="small" />
+              ) : (
+                <Text className="text-white font-black text-center text-xl uppercase tracking-widest">
+                  {activeTeamName} BAŞLASIN!
+                </Text>
+              )}
             </TouchableOpacity>
           </View>
         </View>
