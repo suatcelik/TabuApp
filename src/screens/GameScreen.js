@@ -25,7 +25,7 @@ import useGameStore from "../store/useGameStore";
 
 // --- SABİTLER ---
 const LAST_FIRST_WORD_KEY = "LAST_FIRST_WORD_V1";
-const CARD_COLORS = ["bg-fuchsia-700", "bg-amber-400", "bg-sky-500"];
+const CARD_COLORS = ["bg-fuchsia-700", "bg-amber-400", "bg-sky-500", "bg-red-600"];
 
 // --- YARDIMCI FONKSİYONLAR ---
 
@@ -342,7 +342,7 @@ export default function GameScreen({ navigation }) {
         </View>
 
         <View className="items-center mx-4">
-          <View className="flex-row items-center bg-fuchsia-700 px-6 py-3 rounded-2xl shadow-lg shadow-indigo-200">
+          <View className="flex-row items-center bg-red-500 px-6 py-3 rounded-2xl shadow-lg shadow-indigo-200">
             <Ionicons name="hourglass-outline" size={20} color="white" style={{ marginRight: 8 }} />
             <Text className="text-white font-black text-xl">
               {mm}:{ss}
@@ -480,7 +480,7 @@ export default function GameScreen({ navigation }) {
             </Text>
 
             <TouchableOpacity
-              className="bg-fuchsia-700 w-full py-6 rounded-3xl shadow-xl active:bg-indigo-700 active:scale-95"
+              className="bg-red-500 w-full py-6 rounded-3xl shadow-xl active:bg-indigo-700 active:scale-95"
               onPress={startNextTurn}
             >
               <Text className="text-white font-black text-center text-xl uppercase tracking-widest">

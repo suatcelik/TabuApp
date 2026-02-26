@@ -1,11 +1,10 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect } from "react";
 import {
     View,
     Text,
     TouchableOpacity,
     StatusBar,
     Image,
-    InteractionManager,
     TextInput,
     ScrollView,
     KeyboardAvoidingView,
@@ -14,27 +13,17 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import useGameStore from "../store/useGameStore";
-import Svg, { Path, Text as SvgText, TextPath } from "react-native-svg";
 
-// ✅ DÜZELTME: IAP servisi import edildi
+// ✅ IAP servisi
 import { initIAP } from "../services/iapService";
 
 export default function HomeScreen({ navigation }) {
-    // Store'dan verileri ve güncelleme fonksiyonunu alıyoruz
     const settings = useGameStore((s) => s.settings);
     const updateSettings = useGameStore((s) => s.updateSettings);
     const resetGame = useGameStore((s) => s.resetGame);
 
-    const [showCurvedTitle, setShowCurvedTitle] = useState(false);
-
     useEffect(() => {
-        // ✅ DÜZELTME: Uygulama açılışında market dinleyicilerini başlat (Yarım kalan satın alımları yakalar)
         initIAP().catch((e) => console.log("Açılış IAP Başlatma Hatası:", e));
-
-        const task = InteractionManager.runAfterInteractions(() => {
-            setShowCurvedTitle(true);
-        });
-        return () => task?.cancel?.();
     }, []);
 
     const handleStart = () => {
@@ -50,19 +39,35 @@ export default function HomeScreen({ navigation }) {
                 behavior={Platform.OS === "ios" ? "padding" : "height"}
                 style={{ flex: 1 }}
             >
+                {/* Dört Renkli Belirgin Arka Plan (Fuşya, Mavi, Amber ve Kırmızı) */}
+                <View className="absolute top-0 left-0 right-0 bottom-0 overflow-hidden" pointerEvents="none">
+
+                    {/* Sol Üst - Yoğun Fuşya Odak */}
+                    <View className="absolute -top-10 -left-10 w-80 h-80 rounded-full bg-fuchsia-200/60" />
+                    <View className="absolute -top-5 -left-5 w-56 h-56 rounded-full bg-fuchsia-300/40" />
+
+                    {/* Sağ Üst - Belirgin Kırmızı/Rose Odak (YENİ) */}
+                    <View className="absolute -top-10 -right-10 w-72 h-72 rounded-full bg-rose-200/50" />
+                    <View className="absolute top-0 right-0 w-48 h-48 rounded-full bg-rose-300/30" />
+
+                    {/* Sağ Orta - Belirgin Mavi Odak */}
+                    <View className="absolute top-1/3 -right-16 w-[350px] h-[350px] rounded-full bg-sky-200/50" />
+                    <View className="absolute top-1/2 -right-10 w-64 h-64 rounded-full bg-sky-300/30" />
+
+                    {/* Alt Sol - Sıcak Amber Odak */}
+                    <View className="absolute -bottom-16 -left-16 w-80 h-80 rounded-full bg-amber-100/70" />
+                    <View className="absolute -bottom-10 -left-10 w-56 h-56 rounded-full bg-amber-200/40" />
+                </View>
+
                 <ScrollView
                     contentContainerStyle={{ flexGrow: 1 }}
                     showsVerticalScrollIndicator={false}
                     keyboardShouldPersistTaps="handled"
                 >
-                    {/* Üst Alan */}
                     <View className="flex-1 justify-center items-center px-8 py-10">
-                        {/* Glow / Hero arka plan */}
-                        <View className="absolute -top-24 w-[420px] h-[420px] rounded-full bg-indigo-300/40" />
-                        <View className="absolute top-24 w-[280px] h-[280px] rounded-full bg-indigo-400/30" />
 
                         {/* Logo */}
-                        <View className="items-center justify-center pt-20">
+                        <View className="items-center justify-center pt-16">
                             <Image
                                 source={require("../../assets/logo.png")}
                                 className="w-80 h-80"
@@ -71,27 +76,10 @@ export default function HomeScreen({ navigation }) {
                             />
                         </View>
 
-                        {/* Başlık */}
-                        <View className="items-center">
-                            {showCurvedTitle ? (
-                                <Svg width={300} height={95}>
-                                    <Path id="curve" d="M 20 85 Q 150 5 280 85" fill="transparent" />
-                                    <SvgText fill="#0f172a" fontSize="58" fontWeight="900" textAnchor="middle">
-                                        <TextPath href="#curve" startOffset="50%">
-                                            TABU
-                                        </TextPath>
-                                    </SvgText>
-                                </Svg>
-                            ) : (
-                                <Text className="text-slate-900 text-6xl font-black">TABU</Text>
-                            )}
-                            <Text className="text-6xl font-black text-fuchsia-700 -mt-14">GO</Text>
-                        </View>
-
-                        {/* ✅ TAKIM İSİMLERİ ALANI */}
-                        <View className="w-full mt-10 bg-slate-50 p-6 rounded-[35px] border border-slate-100 shadow-sm">
-                            <Text className="text-slate-400 text-center font-bold uppercase tracking-widest text-[10px] mb-4">
-                                Takımları Düzenle
+                        {/* Takım Düzenleme Alanı */}
+                        <View className="w-full mt-16 bg-white/90 p-6 rounded-[35px] border border-slate-800 shadow-xl shadow-slate-800">
+                            <Text className="text-slate-500 text-center font-bold uppercase tracking-widest text-[10px] mb-4">
+                                Takım İsimlerini Düzenle
                             </Text>
 
                             <View className="flex-row items-center justify-between">
@@ -101,13 +89,13 @@ export default function HomeScreen({ navigation }) {
                                         onChangeText={(t) => updateSettings({ teamAName: t })}
                                         placeholder="Takım A"
                                         placeholderTextColor="#94a3b8"
-                                        className="bg-white border border-slate-200 rounded-2xl px-3 py-3 text-slate-800 font-extrabold text-center"
+                                        className="bg-slate-50 border border-slate-800 rounded-2xl px-3 py-3 text-slate-800 font-extrabold text-center"
                                         maxLength={15}
                                     />
                                 </View>
 
                                 <View className="px-4">
-                                    <Text className="font-black text-fuchsia-700 text-lg italic">VS</Text>
+                                    <Text className="font-black text-red-500 text-lg italic">VS</Text>
                                 </View>
 
                                 <View className="flex-1">
@@ -116,7 +104,7 @@ export default function HomeScreen({ navigation }) {
                                         onChangeText={(t) => updateSettings({ teamBName: t })}
                                         placeholder="Takım B"
                                         placeholderTextColor="#94a3b8"
-                                        className="bg-white border border-slate-200 rounded-2xl px-3 py-3 text-slate-800 font-extrabold text-center"
+                                        className="bg-slate-50 border border-slate-800 rounded-2xl px-3 py-3 text-slate-800 font-extrabold text-center"
                                         maxLength={15}
                                     />
                                 </View>
@@ -124,10 +112,9 @@ export default function HomeScreen({ navigation }) {
                         </View>
                     </View>
 
-                    {/* Alt Alan (Butonlar) */}
-                    <View className="px-8 pb-10 space-y-4">
+                    <View className="px-8 pb-10">
                         <TouchableOpacity
-                            className="bg-fuchsia-700 py-6 rounded-3xl shadow-2xl shadow-indigo-300 flex-row justify-center items-center active:scale-95"
+                            className="bg-fuchsia-700 py-6 rounded-3xl shadow-2xl shadow-fuchsia-300 flex-row justify-center items-center active:scale-95 mb-4"
                             onPress={handleStart}
                         >
                             <Ionicons name="play" size={24} color="white" />
@@ -137,7 +124,7 @@ export default function HomeScreen({ navigation }) {
                         </TouchableOpacity>
 
                         <TouchableOpacity
-                            className="bg-slate-100 py-5 rounded-3xl flex-row justify-center items-center active:bg-slate-200"
+                            className="bg-white/80 py-5 rounded-3xl border border-slate-800 flex-row justify-center items-center active:bg-slate-100"
                             onPress={() => navigation.navigate("Settings")}
                         >
                             <Ionicons name="settings-sharp" size={20} color="#64748b" />
@@ -146,8 +133,8 @@ export default function HomeScreen({ navigation }) {
                             </Text>
                         </TouchableOpacity>
 
-                        <Text className="text-center text-slate-300 text-xs mt-4 font-bold uppercase tracking-tighter">
-                            v1.1.3 - Tabu Go
+                        <Text className="text-center text-slate-400 text-[10px] mt-6 font-bold uppercase tracking-widest">
+                            v1.1.4
                         </Text>
                     </View>
                 </ScrollView>

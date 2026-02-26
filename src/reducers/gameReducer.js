@@ -35,17 +35,10 @@ export function gameReducer(state = initialState, action) {
                 ...state,
                 words: list,
                 currentIndex: 0,
-
-                // ✅ Kritik: SET_WORDS geldiyse yükleme bitti
-                // Kelime yoksa "fetchError" modalını GameScreen gösterir.
                 loading: false,
-
-                // ✅ yeni oyun başlangıcı
                 activeTeam: "A",
                 roundNumber: 1,
                 isGameOver: false,
-
-                // ✅ kelime geldiyse A turu otomatik başlar
                 isActive: hasWords,
             };
         }
@@ -62,11 +55,12 @@ export function gameReducer(state = initialState, action) {
 
         case "TABOO": {
             const isTeamA = state.activeTeam === "A";
+            // ✅ Puanın 0'ın altına düşmesini engellemek için Math.max(0, ...) eklendi
             return {
                 ...state,
                 currentIndex: nextIndex(state),
-                teamAScore: isTeamA ? state.teamAScore - 1 : state.teamAScore,
-                teamBScore: !isTeamA ? state.teamBScore - 1 : state.teamBScore,
+                teamAScore: isTeamA ? Math.max(0, state.teamAScore - 1) : state.teamAScore,
+                teamBScore: !isTeamA ? Math.max(0, state.teamBScore - 1) : state.teamBScore,
             };
         }
 
@@ -85,23 +79,26 @@ export function gameReducer(state = initialState, action) {
             return { ...state, timeLeft: state.timeLeft - 1 };
 
         case "NEXT_ROUND": {
-            const duration = action.payload?.duration ?? state.timeLeft ?? 60;
-            const maxPass =
-                action.payload?.maxPass !== undefined ? action.payload.maxPass : state.passCount ?? 3;
+            const duration = action.payload?.duration ?? 60;
+            const maxPass = action.payload?.maxPass !== undefined ? action.payload.maxPass : 3;
+            const roundsPerTeam = action.payload?.roundsPerTeam !== undefined
+                ? Math.max(1, Number(action.payload.roundsPerTeam) || 1)
+                : state.roundsPerTeam;
 
-            const roundsPerTeam =
-                action.payload?.roundsPerTeam !== undefined
-                    ? Math.max(1, Number(action.payload.roundsPerTeam) || 1)
-                    : state.roundsPerTeam;
+            // ✅ Tur bittiğinde kelimenin aynı kalmaması için index ilerletildi
+            const sharedUpdates = {
+                currentIndex: nextIndex(state),
+                timeLeft: duration,
+                passCount: maxPass,
+                isActive: false,
+                roundsPerTeam,
+            };
 
             if (state.activeTeam === "A") {
                 return {
                     ...state,
+                    ...sharedUpdates,
                     activeTeam: "B",
-                    roundsPerTeam,
-                    timeLeft: duration,
-                    passCount: maxPass,
-                    isActive: false,
                 };
             }
 
@@ -118,12 +115,9 @@ export function gameReducer(state = initialState, action) {
 
             return {
                 ...state,
+                ...sharedUpdates,
                 activeTeam: "A",
                 roundNumber: state.roundNumber + 1,
-                roundsPerTeam,
-                timeLeft: duration,
-                passCount: maxPass,
-                isActive: false,
             };
         }
 
@@ -134,10 +128,9 @@ export function gameReducer(state = initialState, action) {
             };
 
         case "INIT_SETTINGS": {
-            const roundsPerTeam =
-                action.payload?.roundsPerTeam !== undefined
-                    ? Math.max(1, Number(action.payload.roundsPerTeam) || 1)
-                    : state.roundsPerTeam;
+            const roundsPerTeam = action.payload?.roundsPerTeam !== undefined
+                ? Math.max(1, Number(action.payload.roundsPerTeam) || 1)
+                : state.roundsPerTeam;
 
             return {
                 ...state,
