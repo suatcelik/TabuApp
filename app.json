@@ -2,7 +2,7 @@
   "expo": {
     "name": "Tabu GO",
     "slug": "TabuApp",
-    "version": "1.1.4",
+    "version": "1.1.5",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
@@ -25,7 +25,7 @@
         "backgroundColor": "#ffffff"
       },
       "package": "com.arcodiba.tabuapp",
-      "versionCode": 25,
+      "versionCode": 26,
       "permissions": [
         "BILLING"
       ],

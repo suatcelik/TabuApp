@@ -113,7 +113,9 @@ export default function GameScreen({ navigation }) {
 
   useEffect(() => {
     initGame();
-    return () => { if (intervalRef.current) clearInterval(intervalRef.current); };
+    return () => {
+      if (intervalRef.current) clearInterval(intervalRef.current);
+    };
   }, [initGame]);
 
   useEffect(() => {
@@ -150,8 +152,8 @@ export default function GameScreen({ navigation }) {
                 } else {
                   navigation.replace("Home");
                 }
-              }
-            }
+              },
+            },
           ]
         );
         return true;
@@ -169,7 +171,9 @@ export default function GameScreen({ navigation }) {
       return;
     }
     if (intervalRef.current) clearInterval(intervalRef.current);
-    intervalRef.current = setInterval(() => { dispatch({ type: "TICK" }); }, 1000);
+    intervalRef.current = setInterval(() => {
+      dispatch({ type: "TICK" });
+    }, 1000);
     return () => {
       if (intervalRef.current) clearInterval(intervalRef.current);
       intervalRef.current = null;
@@ -216,7 +220,8 @@ export default function GameScreen({ navigation }) {
     InteractionManager.runAfterInteractions(async () => {
       if (cancelled) return;
       try {
-        const winnerScore = state.teamAScore > state.teamBScore ? state.teamAScore : state.teamBScore;
+        const winnerScore =
+          state.teamAScore > state.teamBScore ? state.teamAScore : state.teamBScore;
         saveScore("Player", winnerScore).catch(() => { });
         setFinalScores({ A: state.teamAScore, B: state.teamBScore });
       } catch (_) { }
@@ -228,10 +233,24 @@ export default function GameScreen({ navigation }) {
     };
   }, [state.isGameOver, state.teamAScore, state.teamBScore, navigation, setFinalScores]);
 
-  const onCorrect = () => { if (!state.isActive) return; dispatch({ type: "SUCCESS" }); playSound("SUCCESS"); };
-  const onTaboo = () => { if (!state.isActive) return; dispatch({ type: "TABOO" }); playSound("ERROR"); };
-  const onPass = () => { if (!state.isActive) return; dispatch({ type: "PASS" }); };
-  const startNextTurn = () => { hasPlayedTickRef.current = false; dispatch({ type: "START_TURN" }); };
+  const onCorrect = () => {
+    if (!state.isActive) return;
+    dispatch({ type: "SUCCESS" });
+    playSound("SUCCESS");
+  };
+  const onTaboo = () => {
+    if (!state.isActive) return;
+    dispatch({ type: "TABOO" });
+    playSound("ERROR");
+  };
+  const onPass = () => {
+    if (!state.isActive) return;
+    dispatch({ type: "PASS" });
+  };
+  const startNextTurn = () => {
+    hasPlayedTickRef.current = false;
+    dispatch({ type: "START_TURN" });
+  };
 
   if (state.loading && !state.words?.length && !fetchError) {
     return (
@@ -256,20 +275,49 @@ export default function GameScreen({ navigation }) {
 
   // YENİ TEMA RENDER FONKSİYONU
   const renderThemeBackground = () => {
-    const theme = settings?.selectedTheme || 'default';
+    const theme = settings?.selectedTheme || "default";
 
     // Ekrana rastgele dağılmış ikonlar (Pattern efekti)
     const IconPattern = ({ color, opacity = 0.1 }) => (
-      <View className="absolute top-0 left-0 right-0 bottom-0 overflow-hidden" style={{ opacity }} pointerEvents="none">
-        <Ionicons name="ban" size={120} color={color} style={{ position: 'absolute', top: -20, left: -20, transform: [{ rotate: '-15deg' }] }} />
-        <Ionicons name="chatbubbles" size={100} color={color} style={{ position: 'absolute', top: 40, right: -10, transform: [{ rotate: '10deg' }] }} />
-        <Ionicons name="hourglass" size={140} color={color} style={{ position: 'absolute', top: '40%', left: -30, transform: [{ rotate: '25deg' }] }} />
-        <Ionicons name="mic" size={110} color={color} style={{ position: 'absolute', top: '60%', right: -20, transform: [{ rotate: '-20deg' }] }} />
-        <Ionicons name="volume-mute" size={130} color={color} style={{ position: 'absolute', bottom: -30, left: '30%', transform: [{ rotate: '5deg' }] }} />
+      <View
+        className="absolute top-0 left-0 right-0 bottom-0 overflow-hidden"
+        style={{ opacity }}
+        pointerEvents="none"
+      >
+        <Ionicons
+          name="ban"
+          size={120}
+          color={color}
+          style={{ position: "absolute", top: -20, left: -20, transform: [{ rotate: "-15deg" }] }}
+        />
+        <Ionicons
+          name="chatbubbles"
+          size={100}
+          color={color}
+          style={{ position: "absolute", top: 40, right: -10, transform: [{ rotate: "10deg" }] }}
+        />
+        <Ionicons
+          name="hourglass"
+          size={140}
+          color={color}
+          style={{ position: "absolute", top: "40%", left: -30, transform: [{ rotate: "25deg" }] }}
+        />
+        <Ionicons
+          name="mic"
+          size={110}
+          color={color}
+          style={{ position: "absolute", top: "60%", right: -20, transform: [{ rotate: "-20deg" }] }}
+        />
+        <Ionicons
+          name="volume-mute"
+          size={130}
+          color={color}
+          style={{ position: "absolute", bottom: -30, left: "30%", transform: [{ rotate: "5deg" }] }}
+        />
       </View>
     );
 
-    if (theme === 'neon_shhh') {
+    if (theme === "neon_shhh") {
       return (
         <View className="absolute top-0 left-0 right-0 bottom-0 bg-slate-900" pointerEvents="none">
           <View className="absolute -top-10 -left-10 w-80 h-80 rounded-full bg-cyan-500/20" />
@@ -277,7 +325,7 @@ export default function GameScreen({ navigation }) {
           <IconPattern color="#22d3ee" opacity={0.15} />
         </View>
       );
-    } else if (theme === 'retro_buzz') {
+    } else if (theme === "retro_buzz") {
       return (
         <View className="absolute top-0 left-0 right-0 bottom-0 bg-orange-50" pointerEvents="none">
           <View className="absolute -top-10 -left-10 w-96 h-96 rounded-full bg-amber-200/40" />
@@ -285,14 +333,14 @@ export default function GameScreen({ navigation }) {
           <IconPattern color="#f59e0b" opacity={0.2} />
         </View>
       );
-    } else if (theme === 'golden_victory') {
+    } else if (theme === "golden_victory") {
       return (
         <View className="absolute top-0 left-0 right-0 bottom-0 bg-zinc-900" pointerEvents="none">
           <View className="absolute top-0 left-0 right-0 bottom-0 bg-yellow-900/10" />
           <IconPattern color="#eab308" opacity={0.15} />
         </View>
       );
-    } else if (theme === 'pixel_guesser') {
+    } else if (theme === "pixel_guesser") {
       return (
         <View className="absolute top-0 left-0 right-0 bottom-0 bg-emerald-50" pointerEvents="none">
           <View className="absolute top-1/4 -left-10 w-64 h-64 rounded-xl bg-emerald-200/50 transform rotate-12" />
@@ -300,7 +348,7 @@ export default function GameScreen({ navigation }) {
           <IconPattern color="#10b981" opacity={0.15} />
         </View>
       );
-    } else if (theme === 'graffiti_shhh') {
+    } else if (theme === "graffiti_shhh") {
       return (
         <View className="absolute top-0 left-0 right-0 bottom-0 bg-rose-50" pointerEvents="none">
           <View className="absolute -top-10 -left-10 w-80 h-80 rounded-full bg-rose-200/50" />
@@ -321,8 +369,8 @@ export default function GameScreen({ navigation }) {
     );
   };
 
-  // Karanlık mod seçildiyse ana metinlerin renklerini belirginleştirebilirsiniz
-  const isDarkTheme = settings?.selectedTheme === 'neon_shhh' || settings?.selectedTheme === 'golden_victory';
+  const isDarkTheme =
+    settings?.selectedTheme === "neon_shhh" || settings?.selectedTheme === "golden_victory";
   const textColor = isDarkTheme ? "text-slate-100" : "text-slate-800";
   const mutedTextColor = isDarkTheme ? "text-slate-400" : "text-slate-500";
 
@@ -330,14 +378,17 @@ export default function GameScreen({ navigation }) {
   const headerTextColor = currentColor === "bg-amber-400" ? "text-slate-900" : "text-white";
 
   return (
-    <SafeAreaView className={`flex-1 ${isDarkTheme ? 'bg-slate-900' : 'bg-slate-50'}`}>
+    <SafeAreaView className={`flex-1 ${isDarkTheme ? "bg-slate-900" : "bg-slate-50"}`}>
       <StatusBar barStyle={isDarkTheme ? "light-content" : "dark-content"} />
 
       {/* ARKAPLAN TEMA ÇİZİMİ */}
       {renderThemeBackground()}
 
       {/* Üst Bilgi */}
-      <View className={`flex-row justify-between items-center px-6 py-4 shadow-sm z-10 ${isDarkTheme ? 'bg-slate-800/80' : 'bg-white/80'}`}>
+      <View
+        className={`flex-row justify-between items-center px-6 py-4 shadow-sm z-10 ${isDarkTheme ? "bg-slate-800/80" : "bg-white/80"
+          }`}
+      >
         <View className="items-center flex-1">
           <Text className={`${mutedTextColor} text-[10px] font-bold uppercase`} numberOfLines={1}>
             {activeTeamName}
@@ -367,9 +418,16 @@ export default function GameScreen({ navigation }) {
 
       {/* Kart */}
       <View className="flex-1 justify-center px-8 z-10">
-        <View className={`rounded-[45px] shadow-2xl overflow-hidden border ${isDarkTheme ? 'bg-slate-800 border-slate-700 shadow-slate-900' : 'bg-white border-slate-100'}`}>
+        <View
+          className={`rounded-[45px] shadow-2xl overflow-hidden border ${isDarkTheme
+              ? "bg-slate-800 border-slate-700 shadow-slate-900"
+              : "bg-white border-slate-100"
+            }`}
+        >
           <View className={`${currentColor} py-10 items-center`}>
-            <Text className={`${headerTextColor} text-4xl font-black uppercase tracking-tighter text-center px-4`}>
+            <Text
+              className={`${headerTextColor} text-4xl font-black uppercase tracking-tighter text-center px-4`}
+            >
               {currentWord?.targetWord ?? "—"}
             </Text>
           </View>
@@ -381,7 +439,9 @@ export default function GameScreen({ navigation }) {
                   {word}
                 </Text>
                 {index < (currentWord?.forbiddenWords?.length ?? 0) - 1 && (
-                  <View className={`w-1/2 h-[1px] mt-2 ${isDarkTheme ? 'bg-slate-700' : 'bg-slate-100'}`} />
+                  <View
+                    className={`w-1/2 h-[1px] mt-2 ${isDarkTheme ? "bg-slate-700" : "bg-slate-100"}`}
+                  />
                 )}
               </View>
             ))}
@@ -389,7 +449,7 @@ export default function GameScreen({ navigation }) {
         </View>
       </View>
 
-      {/* Butonlar */}
+      {/* Butonlar - HATA BURADAYDI, KAPANIŞ EKLENDİ */}
       <View className="flex-row px-6 pb-10 gap-4 z-10">
         <TouchableOpacity
           className="flex-1 bg-fuchsia-700 h-24 rounded-3xl items-center justify-center shadow-lg shadow-rose-200 active:scale-95"
@@ -430,7 +490,9 @@ export default function GameScreen({ navigation }) {
               <TouchableOpacity
                 className="flex-1 bg-slate-200 h-12 rounded-2xl items-center justify-center"
                 onPress={async () => {
-                  try { await clearWordsCache?.(); } catch (_) { }
+                  try {
+                    await clearWordsCache?.();
+                  } catch (_) { }
                   setFetchError(null);
                   initGame();
                 }}
@@ -470,9 +532,7 @@ export default function GameScreen({ navigation }) {
             <Text className="text-fuchsia-700 text-3xl font-black mb-1 text-center">
               {prevTeamName}
             </Text>
-            <Text className="text-5xl font-black text-slate-800 mb-2">
-              {prevTeamScore}
-            </Text>
+            <Text className="text-5xl font-black text-slate-800 mb-2">{prevTeamScore}</Text>
 
             <Text className="text-slate-400 text-xs font-bold uppercase tracking-widest mb-6">
               TUR {roundLabel}

@@ -52,6 +52,8 @@ export default function HomeScreen({ navigation }) {
                     contentContainerStyle={{ flexGrow: 1 }}
                     showsVerticalScrollIndicator={false}
                     keyboardShouldPersistTaps="handled"
+                    scrollEnabled={false} // EKLENDİ: Sayfanın kaydırılmasını tamamen engeller
+                    bounces={false}       // EKLENDİ: iOS cihazlardaki aşağı/yukarı esneme efektini kapatır
                 >
                     <View className="flex-1 justify-center items-center px-8 py-10">
                         <View className="items-center justify-center pt-16">
@@ -109,7 +111,6 @@ export default function HomeScreen({ navigation }) {
                             </Text>
                         </TouchableOpacity>
 
-                        {/* YENİ EKLENEN MAĞAZA BUTONU */}
                         <TouchableOpacity
                             className="bg-amber-400 py-5 rounded-3xl border border-amber-500 flex-row justify-center items-center active:scale-95 mb-4 shadow-lg shadow-amber-200"
                             onPress={() => navigation.navigate("Store")}
@@ -131,7 +132,7 @@ export default function HomeScreen({ navigation }) {
                         </TouchableOpacity>
 
                         <Text className="text-center text-slate-400 text-[10px] mt-6 font-bold uppercase tracking-widest">
-                            v1.2.0
+                            v1.1.5
                         </Text>
                     </View>
                 </ScrollView>

@@ -86,24 +86,24 @@ export default function SettingsScreen({ navigation }) {
                         {/* Takım İsimleri */}
                         <View className="gap-4 mb-6">
                             <Text className="text-slate-500 font-bold uppercase tracking-widest text-xs ml-8">Takım İsimleri</Text>
-                            <View className="bg-white p-5 rounded-[35px] border border-slate-100 shadow-sm">
-                                <Text className="text-slate-500 font-bold mb-2">Takım A</Text>
+                            <View className="bg-blue-800 p-5 rounded-[35px] border border-slate-800 shadow-sm">
+                                <Text className="text-white font-bold mb-2">Takım A</Text>
                                 <TextInput
                                     value={settings?.teamAName ?? "Takım A"}
                                     onChangeText={(t) => updateField("teamAName", t)}
                                     placeholder="Takım A"
                                     placeholderTextColor="#94a3b8"
-                                    className="bg-slate-50 border border-slate-200 rounded-2xl px-4 py-3 text-slate-800 font-bold mb-6"
+                                    className="bg-slate-50 border border-slate-800 rounded-2xl px-4 py-3 text-slate-800 font-bold mb-6"
                                     maxLength={20}
                                     autoCapitalize="words"
                                 />
-                                <Text className="text-slate-500 font-bold mb-2">Takım B</Text>
+                                <Text className="text-white font-bold mb-2">Takım B</Text>
                                 <TextInput
                                     value={settings?.teamBName ?? "Takım B"}
                                     onChangeText={(t) => updateField("teamBName", t)}
                                     placeholder="Takım B"
                                     placeholderTextColor="#94a3b8"
-                                    className="bg-slate-50 border border-slate-200 rounded-2xl px-4 py-3 text-slate-800 font-bold"
+                                    className="bg-slate-50 border border-slate-800 rounded-2xl px-4 py-3 text-slate-800 font-bold"
                                     maxLength={20}
                                     autoCapitalize="words"
                                 />
@@ -113,27 +113,27 @@ export default function SettingsScreen({ navigation }) {
                         {/* Diğer Ayarlar (Süre, Tur, Pas) */}
                         <View className="gap-4 mb-6">
                             <Text className="text-slate-500 font-bold uppercase tracking-widest text-xs ml-8">Tur Süresi (Saniye)</Text>
-                            <View className="bg-white p-5 rounded-[35px] border border-slate-100 shadow-sm">
+                            <View className="bg-orange-500 p-5 rounded-[35px] border border-slate-800 shadow-sm">
                                 <TextInput
                                     value={durationText}
                                     onChangeText={handleNumberTyping(setDurationText)}
                                     onBlur={() => sanitizeAndCommit("duration", durationText, 15, 300, setDurationText)}
                                     keyboardType="numeric"
-                                    className="bg-slate-50 border border-slate-200 rounded-2xl px-4 py-3 text-slate-800 font-bold"
+                                    className="bg-slate-50 border border-slate-800 rounded-2xl px-4 py-3 text-slate-800 font-bold"
                                     maxLength={3}
                                 />
                             </View>
                         </View>
 
-                        <View className="gap-4 mb-6">
+                        <View className="gap-4 mb-6 ">
                             <Text className="text-slate-500 font-bold uppercase tracking-widest text-xs ml-8">Tur Sayısı (Takım Başına)</Text>
-                            <View className="bg-white p-5 rounded-[35px] border border-slate-100 shadow-sm">
+                            <View className="bg-orange-500 p-5 rounded-[35px] border border-slate-800 shadow-sm ">
                                 <TextInput
                                     value={roundsPerTeamText}
                                     onChangeText={handleNumberTyping(setRoundsPerTeamText)}
                                     onBlur={() => sanitizeAndCommit("roundsPerTeam", roundsPerTeamText, 1, 30, setRoundsPerTeamText)}
                                     keyboardType="numeric"
-                                    className="bg-slate-50 border border-slate-200 rounded-2xl px-4 py-3 text-slate-800 font-bold"
+                                    className="bg-slate-50 border border-slate-800 rounded-2xl px-4 py-3 text-slate-800 font-bold"
                                     maxLength={2}
                                 />
                             </View>
@@ -141,13 +141,13 @@ export default function SettingsScreen({ navigation }) {
 
                         <View className="gap-4 mb-6">
                             <Text className="text-slate-500 font-bold uppercase tracking-widest text-xs ml-8">Pas Hakkı</Text>
-                            <View className="bg-white p-5 rounded-[35px] border border-slate-100 shadow-sm">
+                            <View className="bg-orange-500 p-5 rounded-[35px] border border-slate-800 shadow-sm">
                                 <TextInput
                                     value={maxPassText}
                                     onChangeText={handleNumberTyping(setMaxPassText)}
                                     onBlur={() => sanitizeAndCommit("maxPass", maxPassText, 0, 30, setMaxPassText)}
                                     keyboardType="numeric"
-                                    className="bg-slate-50 border border-slate-200 rounded-2xl px-4 py-3 text-slate-800 font-bold"
+                                    className="bg-slate-50 border border-slate-800 rounded-2xl px-4 py-3 text-slate-800 font-bold"
                                     maxLength={2}
                                 />
                             </View>
@@ -156,7 +156,7 @@ export default function SettingsScreen({ navigation }) {
                         {/* YASAL */}
                         <View className="gap-4 mt-6">
                             <Text className="text-slate-500 font-bold uppercase tracking-widest text-xs ml-8">Yasal</Text>
-                            <View className="bg-white p-5 rounded-[35px] border border-slate-100 shadow-sm">
+                            <View className="bg-white p-5 rounded-[35px] border border-slate-800 shadow-sm">
                                 <TouchableOpacity
                                     onPress={() => navigation.navigate("PrivacyPolicy")}
                                     className="flex-row items-center justify-between py-3"
