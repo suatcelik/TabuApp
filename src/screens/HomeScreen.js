@@ -6,11 +6,11 @@ import {
     StatusBar,
     Image,
     TextInput,
-    ScrollView,
     KeyboardAvoidingView,
-    Platform
+    Platform,
+    useWindowDimensions,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import useGameStore from "../store/useGameStore";
 import { initIAP } from "../services/iapService";
@@ -19,6 +19,15 @@ export default function HomeScreen({ navigation }) {
     const settings = useGameStore((s) => s.settings);
     const updateSettings = useGameStore((s) => s.updateSettings);
     const resetGame = useGameStore((s) => s.resetGame);
+
+    const insets = useSafeAreaInsets();
+    const { width, height } = useWindowDimensions();
+
+    // ✅ Küçük ekranda logo küçülsün (butonlara yer kalsın)
+    const logoSize = Math.min(Math.round(width * 0.65), 300);
+
+    // ✅ Ekran kısaysa spacing’i azalt
+    const isShort = height < 700;
 
     useEffect(() => {
         initIAP().catch((e) => console.log("Açılış IAP Başlatma Hatası:", e));
@@ -30,14 +39,18 @@ export default function HomeScreen({ navigation }) {
     };
 
     return (
-        <SafeAreaView className="flex-1 bg-white">
+        <SafeAreaView style={{ flex: 1, backgroundColor: "white" }} edges={["top", "bottom"]}>
             <StatusBar barStyle="dark-content" />
 
             <KeyboardAvoidingView
-                behavior={Platform.OS === "ios" ? "padding" : "height"}
                 style={{ flex: 1 }}
+                behavior={Platform.OS === "ios" ? "padding" : undefined}
             >
-                <View className="absolute top-0 left-0 right-0 bottom-0 overflow-hidden" pointerEvents="none">
+                {/* Arka plan baloncukları */}
+                <View
+                    style={{ position: "absolute", top: 0, left: 0, right: 0, bottom: 0, overflow: "hidden" }}
+                    pointerEvents="none"
+                >
                     <View className="absolute -top-10 -left-10 w-80 h-80 rounded-full bg-fuchsia-200/60" />
                     <View className="absolute -top-5 -left-5 w-56 h-56 rounded-full bg-fuchsia-300/40" />
                     <View className="absolute -top-10 -right-10 w-72 h-72 rounded-full bg-rose-200/50" />
@@ -48,24 +61,21 @@ export default function HomeScreen({ navigation }) {
                     <View className="absolute -bottom-10 -left-10 w-56 h-56 rounded-full bg-amber-200/40" />
                 </View>
 
-                <ScrollView
-                    contentContainerStyle={{ flexGrow: 1 }}
-                    showsVerticalScrollIndicator={false}
-                    keyboardShouldPersistTaps="handled"
-                    scrollEnabled={false} // EKLENDİ: Sayfanın kaydırılmasını tamamen engeller
-                    bounces={false}       // EKLENDİ: iOS cihazlardaki aşağı/yukarı esneme efektini kapatır
-                >
-                    <View className="flex-1 justify-center items-center px-8 py-10">
-                        <View className="items-center justify-center pt-16">
-                            <Image
-                                source={require("../../assets/logo.png")}
-                                className="w-80 h-80"
-                                resizeMode="contain"
-                                fadeDuration={0}
-                            />
-                        </View>
+                {/* Ana layout: ÜST (esneyen) + ALT (sabit) */}
+                <View style={{ flex: 1, paddingHorizontal: 32 }}>
+                    {/* ÜST BLOK (esner) */}
+                    <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
+                        <Image
+                            source={require("../../assets/logo.png")}
+                            style={{ width: logoSize, height: logoSize, marginTop: isShort ? 0 : 8 }}
+                            resizeMode="contain"
+                            fadeDuration={0}
+                        />
 
-                        <View className="w-full mt-16 bg-white/90 p-6 rounded-[35px] border border-slate-800 shadow-xl shadow-slate-800">
+                        <View
+                            className="w-full bg-white/90 p-6 rounded-[35px] border border-slate-800 shadow-xl shadow-slate-800"
+                            style={{ marginTop: isShort ? 10 : 16 }}
+                        >
                             <Text className="text-slate-500 text-center font-bold uppercase tracking-widest text-[10px] mb-4">
                                 Takım İsimlerini Düzenle
                             </Text>
@@ -79,6 +89,7 @@ export default function HomeScreen({ navigation }) {
                                         placeholderTextColor="#94a3b8"
                                         className="bg-slate-50 border border-slate-800 rounded-2xl px-3 py-3 text-slate-800 font-extrabold text-center"
                                         maxLength={15}
+                                        returnKeyType="done"
                                     />
                                 </View>
 
@@ -94,13 +105,20 @@ export default function HomeScreen({ navigation }) {
                                         placeholderTextColor="#94a3b8"
                                         className="bg-slate-50 border border-slate-800 rounded-2xl px-3 py-3 text-slate-800 font-extrabold text-center"
                                         maxLength={15}
+                                        returnKeyType="done"
                                     />
                                 </View>
                             </View>
                         </View>
                     </View>
 
-                    <View className="px-8 pb-10">
+                    {/* ALT BLOK (sabit) */}
+                    <View
+                        style={{
+                            paddingBottom: Math.max(insets.bottom, 12) + 12, // ✅ nav bar üstünde kalsın
+                            paddingTop: 12,
+                        }}
+                    >
                         <TouchableOpacity
                             className="bg-fuchsia-700 py-6 rounded-3xl shadow-2xl shadow-fuchsia-300 flex-row justify-center items-center active:scale-95 mb-4"
                             onPress={handleStart}
@@ -131,11 +149,11 @@ export default function HomeScreen({ navigation }) {
                             </Text>
                         </TouchableOpacity>
 
-                        <Text className="text-center text-slate-400 text-[10px] mt-6 font-bold uppercase tracking-widest">
+                        <Text className="text-center text-slate-400 text-[10px] mt-4 font-bold uppercase tracking-widest">
                             v1.1.5
                         </Text>
                     </View>
-                </ScrollView>
+                </View>
             </KeyboardAvoidingView>
         </SafeAreaView>
     );
