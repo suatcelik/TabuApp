@@ -1,6 +1,7 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { db } from "./firebaseConfig";
-import { collection, getDocs, query, limit, orderBy } from "firebase/firestore";
+import { collection, getDocs } from "firebase/firestore"; // limit, query ve orderBy kaldırıldı
+import useGameStore from "../store/useGameStore"; // YENİ: Store import edildi
 
 // ✅ Local fallback
 import fallbackWords from "../data/wordsFallback";
@@ -19,14 +20,33 @@ let memCache = {
   words: null,
 };
 
-// Firestore sorgusu
-export const getWordBatch = async (count = 100) => {
+// YENİ: Firebase'den tüm kelimeleri çekip telefonda harmanlayan fonksiyon
+export const getWordBatch = async (isExtraPurchased = false) => {
   if (!db) return [];
-  const wordsCol = collection(db, "words");
-  const q = query(wordsCol, orderBy("createdAt", "desc"), limit(count));
-  const snapshot = await getDocs(q);
-  if (snapshot.empty) return [];
-  return snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
+
+  try {
+    // 1. Ücretsiz kelimelerin TAMAMINI çek (limit ve tarih sıralaması yok)
+    const wordsCol = collection(db, "words");
+    const snapshot = await getDocs(wordsCol);
+    let allWords = snapshot.empty ? [] : snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
+
+    // 2. Eğer paket satın alındıysa ekstra kelimelerin TAMAMINI çek ve birleştir
+    if (isExtraPurchased) {
+      const extraCol = collection(db, "extra_words");
+      const extraSnapshot = await getDocs(extraCol);
+      const extraWords = extraSnapshot.empty ? [] : extraSnapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
+
+      // Havuzları birleştir
+      allWords = [...allWords, ...extraWords];
+    }
+
+    // 3. Kelimelerin TÜMÜNÜ rastgele karıştır!
+    return allWords.sort(() => Math.random() - 0.5);
+
+  } catch (error) {
+    console.log("Firestore çekme hatası:", error);
+    return [];
+  }
 };
 
 const normalizeWords = (words) => {
@@ -47,8 +67,12 @@ const withTimeout = (promise, ms) =>
     ),
   ]);
 
-export const loadWordsOfflineFirst = async (count = 200) => {
+// count parametresine artık gerek yok, kaldırdık.
+export const loadWordsOfflineFirst = async () => {
   const now = Date.now();
+
+  // YENİ: Store'dan kullanıcının paketi satın alıp almadığını kontrol et
+  const isExtraPurchased = useGameStore.getState().isExtraWordsPurchased;
 
   // 1) Memory Cache (En Hızlı)
   if (memCache.words && memCache.words.length > 0) {
@@ -72,7 +96,9 @@ export const loadWordsOfflineFirst = async (count = 200) => {
   // 3) Firestore (İnternet) - Kısa Timeout ile Dene
   try {
     console.log("Firestore'dan veri çekiliyor...");
-    const fresh = await withTimeout(getWordBatch(count), FIRESTORE_TIMEOUT_MS);
+
+    // YENİ: isExtraPurchased parametresini gönderiyoruz
+    const fresh = await withTimeout(getWordBatch(isExtraPurchased), FIRESTORE_TIMEOUT_MS);
 
     if (Array.isArray(fresh) && fresh.length > 0) {
       const normalized = normalizeWords(fresh);

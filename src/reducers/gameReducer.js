@@ -20,7 +20,12 @@ export const initialState = {
 const nextIndex = (state) => {
     const next = state.currentIndex + 1;
     if (!Array.isArray(state.words) || state.words.length === 0) return next;
-    return Math.min(next, state.words.length - 1);
+
+    // YENİ: Eğer kelimelerin sonuna geldiysek başa (0. indexe) dön
+    if (next >= state.words.length) {
+        return 0;
+    }
+    return next;
 };
 
 export function gameReducer(state = initialState, action) {

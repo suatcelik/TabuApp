@@ -99,7 +99,7 @@ export default function GameScreen({ navigation }) {
   const initGame = useCallback(async () => {
     try {
       setFetchError(null);
-      const { words } = await loadWordsOfflineFirst(200);
+      const { words } = await loadWordsOfflineFirst();
       const list = Array.isArray(words) ? words : [];
       let shuffled = shuffleWords(list);
       shuffled = await ensureDifferentFirstWord(shuffled);

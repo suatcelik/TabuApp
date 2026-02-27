@@ -15,7 +15,8 @@ const BUNDLE_THEMES = [
 ];
 
 export default function StoreScreen({ navigation }) {
-    const { settings, isThemeBundlePurchased, isPremium, updateSettings } = useGameStore();
+    // YENİ: isExtraWordsPurchased state'ini çektik
+    const { settings, isThemeBundlePurchased, isPremium, isExtraWordsPurchased, updateSettings } = useGameStore();
     const [loading, setLoading] = useState(false);
 
     const handleBuy = async (productId) => {
@@ -55,7 +56,6 @@ export default function StoreScreen({ navigation }) {
 
             <ScrollView contentContainerStyle={{ padding: 24, paddingBottom: 60 }} showsVerticalScrollIndicator={false}>
 
-                {/* YENİ: Satın Alımları Geri Yükle Butonu (Üst Kısım) */}
                 <TouchableOpacity
                     className="mb-6 flex-row items-center justify-center bg-white border border-slate-200 py-3 rounded-2xl shadow-sm active:bg-slate-50"
                     onPress={handleRestore}
@@ -82,7 +82,27 @@ export default function StoreScreen({ navigation }) {
                     </TouchableOpacity>
                 )}
 
-                {/* 2. Kısım: Tema Paketi Satın Alma Banner'ı */}
+                {/* YENİ KISIM: Ekstra Kelime Paketi Satın Alma Banner'ı */}
+                {!isExtraWordsPurchased && (
+                    <View className="bg-emerald-500 p-6 rounded-3xl shadow-xl shadow-emerald-200 mb-6 items-center">
+                        <Ionicons name="library" size={40} color="white" className="mb-2" />
+                        <Text className="text-white text-2xl font-black uppercase tracking-widest text-center mb-2">
+                            Mega Kelime Paketi
+                        </Text>
+                        <Text className="text-emerald-100 text-center font-bold mb-4 text-xs px-2">
+                            Eğlenceyi ikiye katla! Oyuna anında +1000'den fazla yepyeni, zorlu ve eğlenceli kelime ekle.
+                        </Text>
+                        <TouchableOpacity
+                            className="bg-white px-8 py-3 rounded-2xl active:scale-95 w-full items-center"
+                            onPress={() => handleBuy("tabu_ekstra_kelime_1")}
+                            disabled={loading}
+                        >
+                            <Text className="text-emerald-600 font-black text-lg uppercase tracking-wider">PAKETİ SATIN AL</Text>
+                        </TouchableOpacity>
+                    </View>
+                )}
+
+                {/* 3. Kısım: Tema Paketi Satın Alma Banner'ı */}
                 {!isThemeBundlePurchased && (
                     <View className="bg-indigo-600 p-6 rounded-3xl shadow-xl shadow-indigo-200 mb-8 items-center">
                         <Ionicons name="color-palette" size={40} color="white" className="mb-2" />

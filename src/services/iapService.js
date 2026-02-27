@@ -13,12 +13,14 @@ import { Platform } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { setPremium } from "./adService";
 import useGameStore from "../store/useGameStore";
+import { clearWordsCache } from "./wordService";
 
 const REMOVE_ADS_KEY = "REMOVE_ADS_V1";
 
 export const PRODUCT_IDS = [
     "tabu_reklamsiz",
-    "tabu_tema_paketi_1"
+    "tabu_tema_paketi_1",
+    "tabu_ekstra_kelime_1" // YENİ EKLENDİ
 ];
 
 let purchaseUpdateSub = null;
@@ -70,12 +72,14 @@ export async function initIAP() {
                 if (token && processedTokens.has(token)) return;
                 if (token) processedTokens.add(token);
 
-                // GÜNCELLENDİ: Hangi ürün satın alındıysa Zustand'ı güncelle
                 if (purchase.productId === "tabu_reklamsiz") {
                     await setLocalRemoveAds(true);
                     useGameStore.getState().setPremiumStatus(true);
                 } else if (purchase.productId === "tabu_tema_paketi_1") {
                     useGameStore.getState().unlockThemeBundle();
+                } else if (purchase.productId === "tabu_ekstra_kelime_1") {
+                    useGameStore.getState().unlockExtraWords();
+                    clearWordsCache(); // YENİ: Paket alındığında eski kelime önbelleğini temizle
                 }
 
                 await finishTransaction({ purchase, isConsumable: false });
@@ -143,21 +147,29 @@ export async function restorePurchases() {
 
         let hasRemoveAds = false;
         let hasThemeBundle = false;
+        let hasExtraWords = false; // YENİ EKLENDİ
 
         (purchases || []).forEach(p => {
             if (p.productId === "tabu_reklamsiz") {
                 hasRemoveAds = true;
             } else if (p.productId === "tabu_tema_paketi_1") {
                 hasThemeBundle = true;
+            } else if (p.productId === "tabu_ekstra_kelime_1") {
+                hasExtraWords = true; // YENİ EKLENDİ
             }
         });
 
-        // GÜNCELLENDİ: Eski satın alımları Zustand'a yükle
         await setLocalRemoveAds(hasRemoveAds);
         useGameStore.getState().setPremiumStatus(hasRemoveAds);
 
         if (hasThemeBundle) {
             useGameStore.getState().unlockThemeBundle();
+        }
+
+        // YENİ: Ekstra kelime durumu yükle
+        if (hasExtraWords) {
+            useGameStore.getState().unlockExtraWords();
+            clearWordsCache();
         }
 
         return hasRemoveAds;
