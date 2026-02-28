@@ -27,7 +27,11 @@
       "package": "com.arcodiba.tabuapp",
       "versionCode": 27,
       "permissions": [
-        "BILLING"
+        "BILLING",
+        "android.permission.POST_NOTIFICATIONS",
+        "android.permission.SCHEDULE_EXACT_ALARM",
+        "android.permission.USE_EXACT_ALARM",
+        "android.permission.VIBRATE"
       ],
       "blockedPermissions": [
         "android.permission.RECORD_AUDIO"
@@ -42,6 +46,13 @@
         {
           "androidAppId": "ca-app-pub-7780845735147349~4057164341",
           "iosAppId": "ca-app-pub-7780845735147349~3444167665"
+        }
+      ],
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/icon.png",
+          "color": "#ffffff"
         }
       ]
     ],
