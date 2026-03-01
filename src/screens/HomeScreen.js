@@ -73,10 +73,10 @@ export default function HomeScreen({ navigation }) {
                         />
 
                         <View
-                            className="w-full bg-white/90 p-6 rounded-[35px] border border-slate-800 shadow-xl shadow-slate-800"
+                            className="w-full bg-white p-6 rounded-[35px] border border-slate-800 shadow-xl shadow-slate-800"
                             style={{ marginTop: isShort ? 10 : 16 }}
                         >
-                            <Text className="text-slate-500 text-center font-bold uppercase tracking-widest text-[10px] mb-4">
+                            <Text className="text-slate-950 text-center font-bold uppercase tracking-widest text-[12px] mb-4">
                                 Takım İsimlerini Düzenle
                             </Text>
 
@@ -87,14 +87,14 @@ export default function HomeScreen({ navigation }) {
                                         onChangeText={(t) => updateSettings({ teamAName: t })}
                                         placeholder="Takım A"
                                         placeholderTextColor="#94a3b8"
-                                        className="bg-slate-50 border border-slate-800 rounded-2xl px-3 py-3 text-slate-800 font-extrabold text-center"
+                                        className="bg-gray-50/60 border border-slate-800 rounded-2xl px-3 py-3 text-slate-800 font-extrabold text-center"
                                         maxLength={15}
                                         returnKeyType="done"
                                     />
                                 </View>
 
                                 <View className="px-4">
-                                    <Text className="font-black text-red-500 text-lg italic">VS</Text>
+                                    <Text className="font-black text-slate-950 text-2xl italic">VS</Text>
                                 </View>
 
                                 <View className="flex-1">
@@ -103,7 +103,7 @@ export default function HomeScreen({ navigation }) {
                                         onChangeText={(t) => updateSettings({ teamBName: t })}
                                         placeholder="Takım B"
                                         placeholderTextColor="#94a3b8"
-                                        className="bg-slate-50 border border-slate-800 rounded-2xl px-3 py-3 text-slate-800 font-extrabold text-center"
+                                        className="bg-gray-50/60 border border-slate-800 rounded-2xl px-3 py-3 text-slate-800 font-extrabold text-center"
                                         maxLength={15}
                                         returnKeyType="done"
                                     />
