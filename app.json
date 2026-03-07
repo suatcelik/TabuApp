@@ -25,12 +25,10 @@
         "backgroundColor": "#ffffff"
       },
       "package": "com.arcodiba.tabuapp",
-      "versionCode": 27,
+      "versionCode": 28,
       "permissions": [
         "BILLING",
         "android.permission.POST_NOTIFICATIONS",
-        "android.permission.SCHEDULE_EXACT_ALARM",
-        "android.permission.USE_EXACT_ALARM",
         "android.permission.VIBRATE"
       ],
       "blockedPermissions": [
