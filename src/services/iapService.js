@@ -11,16 +11,15 @@ import {
 } from "react-native-iap";
 import { Platform } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { setPremium } from "./adService";
 import useGameStore from "../store/useGameStore";
 import { clearWordsCache } from "./wordService";
 
 const REMOVE_ADS_KEY = "REMOVE_ADS_V1";
 
+// "tabu_reklamsiz" ürünü App Store incelemesi için kaldırıldı
 export const PRODUCT_IDS = [
-    "tabu_reklamsiz",
     "tabu_tema_paketi_1",
-    "tabu_ekstra_kelime_1" // YENİ EKLENDİ
+    "tabu_ekstra_kelime_1"
 ];
 
 let purchaseUpdateSub = null;
@@ -29,6 +28,7 @@ let iapInited = false;
 const processedTokens = new Set();
 let busy = false;
 
+// App.js'in çökmemesi için bu fonksiyonlar tutuldu
 export async function getLocalRemoveAds() {
     const v = await AsyncStorage.getItem(REMOVE_ADS_KEY);
     return v === "1";
@@ -36,11 +36,7 @@ export async function getLocalRemoveAds() {
 
 export async function setLocalRemoveAds(enabled) {
     await AsyncStorage.setItem(REMOVE_ADS_KEY, enabled ? "1" : "0");
-    try {
-        await setPremium(!!enabled);
-    } catch (err) {
-        console.log("[IAP] AdService sync error:", err);
-    }
+    // adService kaldırıldığı için buradaki reklam engelleme servisi çağrısı silindi
 }
 
 export async function initIAP() {
@@ -72,14 +68,11 @@ export async function initIAP() {
                 if (token && processedTokens.has(token)) return;
                 if (token) processedTokens.add(token);
 
-                if (purchase.productId === "tabu_reklamsiz") {
-                    await setLocalRemoveAds(true);
-                    useGameStore.getState().setPremiumStatus(true);
-                } else if (purchase.productId === "tabu_tema_paketi_1") {
+                if (purchase.productId === "tabu_tema_paketi_1") {
                     useGameStore.getState().unlockThemeBundle();
                 } else if (purchase.productId === "tabu_ekstra_kelime_1") {
                     useGameStore.getState().unlockExtraWords();
-                    clearWordsCache(); // YENİ: Paket alındığında eski kelime önbelleğini temizle
+                    clearWordsCache();
                 }
 
                 await finishTransaction({ purchase, isConsumable: false });
@@ -138,8 +131,6 @@ export async function buyProduct(sku) {
     }
 }
 
-export const buyRemoveAds = () => buyProduct("tabu_reklamsiz");
-
 export async function restorePurchases() {
     try {
         if (!iapInited) await initIAP();
@@ -147,7 +138,7 @@ export async function restorePurchases() {
 
         let hasRemoveAds = false;
         let hasThemeBundle = false;
-        let hasExtraWords = false; // YENİ EKLENDİ
+        let hasExtraWords = false;
 
         (purchases || []).forEach(p => {
             if (p.productId === "tabu_reklamsiz") {
@@ -155,7 +146,7 @@ export async function restorePurchases() {
             } else if (p.productId === "tabu_tema_paketi_1") {
                 hasThemeBundle = true;
             } else if (p.productId === "tabu_ekstra_kelime_1") {
-                hasExtraWords = true; // YENİ EKLENDİ
+                hasExtraWords = true;
             }
         });
 
@@ -166,7 +157,6 @@ export async function restorePurchases() {
             useGameStore.getState().unlockThemeBundle();
         }
 
-        // YENİ: Ekstra kelime durumu yükle
         if (hasExtraWords) {
             useGameStore.getState().unlockExtraWords();
             clearWordsCache();
@@ -177,8 +167,6 @@ export async function restorePurchases() {
         throw new Error("Geri yükleme işlemi başarısız oldu.");
     }
 }
-
-export const restoreRemoveAds = restorePurchases;
 
 export async function endIAP() {
     purchaseUpdateSub?.remove?.();

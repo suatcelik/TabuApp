@@ -20,7 +20,6 @@ import { gameReducer, initialState } from "../reducers/gameReducer";
 import { saveScore } from "../services/leaderboardService";
 import { logRoundEnd } from "../services/analyticsService";
 import useGameStore from "../store/useGameStore";
-import { checkAndShowAd } from "../services/adService";
 
 const LAST_FIRST_WORD_KEY = "LAST_FIRST_WORD_V1";
 // Varsayılan kart renkleri
@@ -253,23 +252,7 @@ export default function GameScreen({ navigation }) {
   const startNextTurn = async () => {
     if (isProcessingTurn) return;
     hasPlayedTickRef.current = false;
-
-    // Her 2 tam raundun sonunda (Yani 4 tur oynandığında: A1, B1, A2, B2)
-    // Sıra tekrar A takımına geldiğinde ve raund sayısı 1'den büyük ve tek sayı olduğunda (3, 5, 7. raund başlangıçları)
-    if (state.activeTeam === "A" && state.roundNumber > 1 && state.roundNumber % 2 !== 0) {
-      setIsProcessingTurn(true);
-      const didShow = await checkAndShowAd(() => {
-        dispatch({ type: "START_TURN" });
-        setIsProcessingTurn(false);
-      });
-
-      if (!didShow) {
-        dispatch({ type: "START_TURN" });
-        setIsProcessingTurn(false);
-      }
-    } else {
-      dispatch({ type: "START_TURN" });
-    }
+    dispatch({ type: "START_TURN" });
   };
 
   if (state.loading && !state.words?.length && !fetchError) {
@@ -469,7 +452,7 @@ export default function GameScreen({ navigation }) {
         </View>
       </View>
 
-      {/* Butonlar - HATA BURADAYDI, KAPANIŞ EKLENDİ */}
+      {/* Butonlar */}
       <View className="flex-row px-6 pb-10 gap-4 z-10">
         <TouchableOpacity
           className="flex-1 bg-fuchsia-700 h-24 rounded-3xl items-center justify-center shadow-lg shadow-rose-200 active:scale-95"

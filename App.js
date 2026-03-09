@@ -10,10 +10,7 @@ import * as Notifications from "expo-notifications";
 
 import ErrorBoundary from "./src/components/ErrorBoundary";
 
-// ✅ Ads
-import { initAds, setPremium } from "./src/services/adService";
 
-// ✅ IAP (Remove Ads & Themes)
 import {
   initIAP,
   endIAP,
@@ -116,20 +113,8 @@ export default function App() {
         } catch (e) {
           hasRemoveAds = await getLocalRemoveAds();
         }
-
-        try {
-          await setPremium(!!hasRemoveAds);
-        } catch { }
-
-        if (!cancelled && !hasRemoveAds) {
-          await initAds();
-        }
       } catch (e) {
-        if (!cancelled) {
-          try {
-            await initAds();
-          } catch { }
-        }
+        console.log("IAP Başlatma Hatası:", e);
       }
     })();
 

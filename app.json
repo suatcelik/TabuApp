@@ -40,13 +40,6 @@
       "expo-asset",
       "react-native-iap",
       [
-        "react-native-google-mobile-ads",
-        {
-          "androidAppId": "ca-app-pub-7780845735147349~4057164341",
-          "iosAppId": "ca-app-pub-7780845735147349~3444167665"
-        }
-      ],
-      [
         "expo-notifications",
         {
           "icon": "./assets/icon.png",

@@ -12,19 +12,12 @@ import { Ionicons } from "@expo/vector-icons";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useAudioPlayer } from "expo-audio";
 
-// Güncellenmiş servis fonksiyonları
-import {
-  checkAndShowAd,
-  prepareNextGameAd,
-} from "../services/adService";
-
 export default function ResultScreen({ navigation }) {
   const finalScores = useGameStore((s) => s.finalScores);
   const settings = useGameStore((s) => s.settings);
   const resetGame = useGameStore((s) => s.resetGame);
 
   const [showConfetti, setShowConfetti] = useState(false);
-  // Butona basıldığında çift tıklamayı ve UI donmasını önlemek için loading state
   const [isProcessing, setIsProcessing] = useState(false);
 
   const winPlayer = useAudioPlayer(require("../../assets/success.mp3"));
@@ -40,10 +33,7 @@ export default function ResultScreen({ navigation }) {
         ? settings?.teamBName
         : "Berabere";
 
-  // 1) Ekran Yüklenince: Reklam servisine "Hazırlan" komutu ver
   useEffect(() => {
-    prepareNextGameAd();
-
     // Konfeti ve Ses
     if (winnerKey !== "Draw") {
       const timer = setTimeout(() => {
@@ -58,29 +48,9 @@ export default function ResultScreen({ navigation }) {
     if (isProcessing) return; // Çift tıklamayı önle
     setIsProcessing(true);
 
-    // Navigasyon Fonksiyonu (Reklam kapanınca veya reklam yoksa çalışır)
-    const navigateHome = () => {
-      resetGame();
-      setIsProcessing(false);
-      navigation.navigate("Home");
-    };
-
-    try {
-      // 2) Reklam Kontrolü: Navigasyonu callback olarak gönderiyoruz.
-      // Eğer reklam gösterilirse 'didShow' true döner, navigasyon reklam kapanınca çalışır.
-      // Eğer reklam gösterilmezse 'didShow' false döner, biz hemen çalıştırırız.
-      const didShow = await checkAndShowAd(navigateHome);
-
-      if (!didShow) {
-        navigateHome();
-      }
-      // didShow === true ise, adService içindeki 'onAdClosed' navigasyonu tetikleyecek.
-
-    } catch (error) {
-      // Herhangi bir hata durumunda kullanıcıyı bekletme
-      console.log("Oyun geçiş hatası:", error);
-      navigateHome();
-    }
+    resetGame();
+    setIsProcessing(false);
+    navigation.navigate("Home");
   };
 
   return (

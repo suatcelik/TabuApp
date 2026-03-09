@@ -15,8 +15,7 @@ const BUNDLE_THEMES = [
 ];
 
 export default function StoreScreen({ navigation }) {
-    // YENİ: isExtraWordsPurchased state'ini çektik
-    const { settings, isThemeBundlePurchased, isPremium, isExtraWordsPurchased, updateSettings } = useGameStore();
+    const { settings, isThemeBundlePurchased, isExtraWordsPurchased, updateSettings } = useGameStore();
     const [loading, setLoading] = useState(false);
 
     const handleBuy = async (productId) => {
@@ -65,24 +64,7 @@ export default function StoreScreen({ navigation }) {
                     <Text className="ml-2 text-indigo-600 font-bold tracking-tight">Eski Satın Alımları Geri Yükle</Text>
                 </TouchableOpacity>
 
-                {/* 1. Kısım: Reklam Kaldırma */}
-                {!isPremium && (
-                    <TouchableOpacity
-                        className="bg-amber-400 p-6 rounded-3xl shadow-xl shadow-amber-200 mb-6 flex-row items-center justify-between"
-                        onPress={() => handleBuy("tabu_reklamsiz")}
-                        disabled={loading}
-                    >
-                        <View className="flex-1 pr-4">
-                            <Text className="text-white text-xl font-black uppercase tracking-widest mb-1">Reklamsız Oyna</Text>
-                            <Text className="text-amber-100 font-bold text-xs">Oyununu hiç bölünmeden oyna.</Text>
-                        </View>
-                        <View className="bg-white px-4 py-2 rounded-xl">
-                            <Text className="text-amber-500 font-black">SATIN AL</Text>
-                        </View>
-                    </TouchableOpacity>
-                )}
-
-                {/* YENİ KISIM: Ekstra Kelime Paketi Satın Alma Banner'ı */}
+                {/* 1. Kısım: Ekstra Kelime Paketi Satın Alma Banner'ı */}
                 {!isExtraWordsPurchased && (
                     <View className="bg-emerald-500 p-6 rounded-3xl shadow-xl shadow-emerald-200 mb-6 items-center">
                         <Ionicons name="library" size={40} color="white" className="mb-2" />
@@ -102,7 +84,7 @@ export default function StoreScreen({ navigation }) {
                     </View>
                 )}
 
-                {/* 3. Kısım: Tema Paketi Satın Alma Banner'ı */}
+                {/* 2. Kısım: Tema Paketi Satın Alma Banner'ı */}
                 {!isThemeBundlePurchased && (
                     <View className="bg-indigo-600 p-6 rounded-3xl shadow-xl shadow-indigo-200 mb-8 items-center">
                         <Ionicons name="color-palette" size={40} color="white" className="mb-2" />
