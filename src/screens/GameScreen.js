@@ -1,19 +1,14 @@
 import React, { useEffect, useReducer, useRef, useState, useCallback } from "react";
 import {
-  View,
-  Text,
-  TouchableOpacity,
-  ActivityIndicator,
-  Modal,
-  StatusBar,
-  InteractionManager,
-  BackHandler,
-  Alert,
+  View, Text, TouchableOpacity, ActivityIndicator, Modal, StatusBar,
+  InteractionManager, BackHandler, Alert
 } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Ionicons } from "@expo/vector-icons";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useAudioPlayer } from "expo-audio";
+// REKLAM İMPORTLARI
+import { InterstitialAd, AdEventType, TestIds } from 'react-native-google-mobile-ads';
 
 import { loadWordsOfflineFirst, clearWordsCache } from "../services/wordService";
 import { gameReducer, initialState } from "../reducers/gameReducer";
@@ -22,8 +17,13 @@ import { logRoundEnd } from "../services/analyticsService";
 import useGameStore from "../store/useGameStore";
 
 const LAST_FIRST_WORD_KEY = "LAST_FIRST_WORD_V1";
-// Varsayılan kart renkleri
 const CARD_COLORS = ["bg-fuchsia-700", "bg-amber-400", "bg-sky-500", "bg-red-600"];
+
+// Geçiş reklamı objesini oluşturuyoruz
+const adUnitId = __DEV__ ? TestIds.INTERSTITIAL : 'ca-app-pub-7780845735147349/8291922826';
+const interstitial = InterstitialAd.createForAdRequest(adUnitId, {
+  requestNonPersonalizedAdsOnly: true,
+});
 
 const shuffleWords = (words) => {
   const arr = [...words];
@@ -59,9 +59,11 @@ export default function GameScreen({ navigation }) {
   const [state, dispatch] = useReducer(gameReducer, initialState);
   const [fetchError, setFetchError] = useState(null);
   const [isProcessingTurn, setIsProcessingTurn] = useState(false);
+  const [adLoaded, setAdLoaded] = useState(false); // Reklam State'i
 
   const settings = useGameStore((s) => s.settings);
   const setFinalScores = useGameStore((s) => s.setFinalScores);
+  const isPremium = useGameStore((s) => s.isPremium); // Premium durumu çekildi
 
   const successPlayer = useAudioPlayer(require("../../assets/success.mp3"));
   const errorPlayer = useAudioPlayer(require("../../assets/error.mp3"));
@@ -69,6 +71,32 @@ export default function GameScreen({ navigation }) {
 
   const intervalRef = useRef(null);
   const hasPlayedTickRef = useRef(false);
+
+  // REKLAM YÜKLEME VE DİNLEME EFFECT'İ
+  useEffect(() => {
+    const unsubscribeLoaded = interstitial.addAdEventListener(AdEventType.LOADED, () => {
+      setAdLoaded(true);
+    });
+
+    const unsubscribeClosed = interstitial.addAdEventListener(AdEventType.CLOSED, () => {
+      setAdLoaded(false);
+      interstitial.load(); // Kapanınca bir sonraki için yenisini yükle
+      setIsProcessingTurn(false);
+
+      // Reklam kapandıktan sonra oyunu başlat
+      hasPlayedTickRef.current = false;
+      dispatch({ type: "START_TURN" });
+    });
+
+    if (!isPremium) {
+      interstitial.load();
+    }
+
+    return () => {
+      unsubscribeLoaded();
+      unsubscribeClosed();
+    };
+  }, [isPremium]);
 
   const playSound = (type) => {
     try {
@@ -251,8 +279,23 @@ export default function GameScreen({ navigation }) {
 
   const startNextTurn = async () => {
     if (isProcessingTurn) return;
+    setIsProcessingTurn(true);
+
+    // Her 2 turun sonunda (Yani A takımının 3., 5., 7. turlarına başlarken reklam göster)
+    if (
+      !isPremium &&
+      adLoaded &&
+      state.activeTeam === "A" &&
+      state.roundNumber > 1 &&
+      state.roundNumber % 2 !== 0
+    ) {
+      interstitial.show();
+      return; // İşleme CLOSED eventinde devam edilecek
+    }
+
     hasPlayedTickRef.current = false;
     dispatch({ type: "START_TURN" });
+    setIsProcessingTurn(false);
   };
 
   if (state.loading && !state.words?.length && !fetchError) {
@@ -276,47 +319,15 @@ export default function GameScreen({ navigation }) {
   const totalRounds = state.roundsPerTeam ?? settings?.roundsPerTeam ?? 4;
   const roundLabel = `${state.roundNumber ?? 1}/${totalRounds}`;
 
-  // YENİ TEMA RENDER FONKSİYONU
   const renderThemeBackground = () => {
     const theme = settings?.selectedTheme || "default";
-
-    // Ekrana rastgele dağılmış ikonlar (Pattern efekti)
     const IconPattern = ({ color, opacity = 0.1 }) => (
-      <View
-        className="absolute top-0 left-0 right-0 bottom-0 overflow-hidden"
-        style={{ opacity }}
-        pointerEvents="none"
-      >
-        <Ionicons
-          name="ban"
-          size={120}
-          color={color}
-          style={{ position: "absolute", top: -20, left: -20, transform: [{ rotate: "-15deg" }] }}
-        />
-        <Ionicons
-          name="chatbubbles"
-          size={100}
-          color={color}
-          style={{ position: "absolute", top: 40, right: -10, transform: [{ rotate: "10deg" }] }}
-        />
-        <Ionicons
-          name="hourglass"
-          size={140}
-          color={color}
-          style={{ position: "absolute", top: "40%", left: -30, transform: [{ rotate: "25deg" }] }}
-        />
-        <Ionicons
-          name="mic"
-          size={110}
-          color={color}
-          style={{ position: "absolute", top: "60%", right: -20, transform: [{ rotate: "-20deg" }] }}
-        />
-        <Ionicons
-          name="volume-mute"
-          size={130}
-          color={color}
-          style={{ position: "absolute", bottom: -30, left: "30%", transform: [{ rotate: "5deg" }] }}
-        />
+      <View className="absolute top-0 left-0 right-0 bottom-0 overflow-hidden" style={{ opacity }} pointerEvents="none">
+        <Ionicons name="ban" size={120} color={color} style={{ position: "absolute", top: -20, left: -20, transform: [{ rotate: "-15deg" }] }} />
+        <Ionicons name="chatbubbles" size={100} color={color} style={{ position: "absolute", top: 40, right: -10, transform: [{ rotate: "10deg" }] }} />
+        <Ionicons name="hourglass" size={140} color={color} style={{ position: "absolute", top: "40%", left: -30, transform: [{ rotate: "25deg" }] }} />
+        <Ionicons name="mic" size={110} color={color} style={{ position: "absolute", top: "60%", right: -20, transform: [{ rotate: "-20deg" }] }} />
+        <Ionicons name="volume-mute" size={130} color={color} style={{ position: "absolute", bottom: -30, left: "30%", transform: [{ rotate: "5deg" }] }} />
       </View>
     );
 
@@ -361,7 +372,6 @@ export default function GameScreen({ navigation }) {
       );
     }
 
-    // Default (Klasik Parti)
     return (
       <View className="absolute top-0 left-0 right-0 bottom-0 bg-slate-50" pointerEvents="none">
         <View className="absolute -top-10 -left-10 w-80 h-80 rounded-full bg-fuchsia-200/40" />
@@ -372,11 +382,9 @@ export default function GameScreen({ navigation }) {
     );
   };
 
-  const isDarkTheme =
-    settings?.selectedTheme === "neon_shhh" || settings?.selectedTheme === "golden_victory";
+  const isDarkTheme = settings?.selectedTheme === "neon_shhh" || settings?.selectedTheme === "golden_victory";
   const textColor = isDarkTheme ? "text-slate-100" : "text-slate-800";
   const mutedTextColor = isDarkTheme ? "text-slate-400" : "text-slate-500";
-
   const currentColor = CARD_COLORS[(state.currentIndex ?? 0) % CARD_COLORS.length];
   const headerTextColor = currentColor === "bg-amber-400" ? "text-slate-900" : "text-white";
 
@@ -384,14 +392,9 @@ export default function GameScreen({ navigation }) {
     <SafeAreaView className={`flex-1 ${isDarkTheme ? "bg-slate-900" : "bg-slate-50"}`}>
       <StatusBar barStyle={isDarkTheme ? "light-content" : "dark-content"} />
 
-      {/* ARKAPLAN TEMA ÇİZİMİ */}
       {renderThemeBackground()}
 
-      {/* Üst Bilgi */}
-      <View
-        className={`flex-row justify-between items-center px-6 py-4 shadow-sm z-10 ${isDarkTheme ? "bg-slate-800/80" : "bg-white/80"
-          }`}
-      >
+      <View className={`flex-row justify-between items-center px-6 py-4 shadow-sm z-10 ${isDarkTheme ? "bg-slate-800/80" : "bg-white/80"}`}>
         <View className="items-center flex-1">
           <Text className={`${mutedTextColor} text-[10px] font-bold uppercase`} numberOfLines={1}>
             {activeTeamName}
@@ -419,18 +422,10 @@ export default function GameScreen({ navigation }) {
         </View>
       </View>
 
-      {/* Kart */}
       <View className="flex-1 justify-center px-8 z-10">
-        <View
-          className={`rounded-[45px] shadow-2xl overflow-hidden border ${isDarkTheme
-            ? "bg-slate-800 border-slate-700 shadow-slate-900"
-            : "bg-white border-slate-100"
-            }`}
-        >
+        <View className={`rounded-[45px] shadow-2xl overflow-hidden border ${isDarkTheme ? "bg-slate-800 border-slate-700 shadow-slate-900" : "bg-white border-slate-100"}`}>
           <View className={`${currentColor} py-10 items-center`}>
-            <Text
-              className={`${headerTextColor} text-4xl font-black uppercase tracking-tighter text-center px-4`}
-            >
+            <Text className={`${headerTextColor} text-4xl font-black uppercase tracking-tighter text-center px-4`}>
               {currentWord?.targetWord ?? "—"}
             </Text>
           </View>
@@ -442,9 +437,7 @@ export default function GameScreen({ navigation }) {
                   {word}
                 </Text>
                 {index < (currentWord?.forbiddenWords?.length ?? 0) - 1 && (
-                  <View
-                    className={`w-1/2 h-[1px] mt-2 ${isDarkTheme ? "bg-slate-700" : "bg-slate-100"}`}
-                  />
+                  <View className={`w-1/2 h-[1px] mt-2 ${isDarkTheme ? "bg-slate-700" : "bg-slate-100"}`} />
                 )}
               </View>
             ))}
@@ -452,64 +445,33 @@ export default function GameScreen({ navigation }) {
         </View>
       </View>
 
-      {/* Butonlar */}
       <View className="flex-row px-6 pb-10 gap-4 z-10">
-        <TouchableOpacity
-          className="flex-1 bg-fuchsia-700 h-24 rounded-3xl items-center justify-center shadow-lg shadow-rose-200 active:scale-95"
-          onPress={onTaboo}
-          disabled={!state.isActive}
-        >
+        <TouchableOpacity className="flex-1 bg-fuchsia-700 h-24 rounded-3xl items-center justify-center shadow-lg shadow-rose-200 active:scale-95" onPress={onTaboo} disabled={!state.isActive}>
           <Ionicons name="close-circle" size={32} color="white" />
           <Text className="text-white font-black uppercase mt-1">Tabu</Text>
         </TouchableOpacity>
 
-        <TouchableOpacity
-          className="flex-1 bg-amber-400 h-24 rounded-3xl items-center justify-center shadow-lg shadow-amber-200 active:scale-95"
-          onPress={onPass}
-          disabled={!state.isActive}
-        >
+        <TouchableOpacity className="flex-1 bg-amber-400 h-24 rounded-3xl items-center justify-center shadow-lg shadow-amber-200 active:scale-95" onPress={onPass} disabled={!state.isActive}>
           <Ionicons name="refresh-circle" size={32} color="white" />
           <Text className="text-white font-black uppercase mt-1">Pas</Text>
         </TouchableOpacity>
 
-        <TouchableOpacity
-          className="flex-1 bg-sky-500 h-24 rounded-3xl items-center justify-center shadow-lg shadow-emerald-200 active:scale-95"
-          onPress={onCorrect}
-          disabled={!state.isActive}
-        >
+        <TouchableOpacity className="flex-1 bg-sky-500 h-24 rounded-3xl items-center justify-center shadow-lg shadow-emerald-200 active:scale-95" onPress={onCorrect} disabled={!state.isActive}>
           <Ionicons name="checkmark-circle" size={32} color="white" />
           <Text className="text-white font-black uppercase mt-1">Doğru</Text>
         </TouchableOpacity>
       </View>
 
-      {/* Modallar */}
       <Modal visible={!!fetchError} transparent animationType="fade">
         <View className="flex-1 items-center justify-center bg-black/40 px-6">
           <View className="bg-white w-full rounded-3xl p-6">
             <Text className="text-lg font-black mb-2">Bağlantı Sorunu</Text>
             <Text className="text-base mb-4">{fetchError}</Text>
-
             <View className="flex-row gap-3">
-              <TouchableOpacity
-                className="flex-1 bg-slate-200 h-12 rounded-2xl items-center justify-center"
-                onPress={async () => {
-                  try {
-                    await clearWordsCache?.();
-                  } catch (_) { }
-                  setFetchError(null);
-                  initGame();
-                }}
-              >
+              <TouchableOpacity className="flex-1 bg-slate-200 h-12 rounded-2xl items-center justify-center" onPress={async () => { try { await clearWordsCache?.(); } catch (_) { } setFetchError(null); initGame(); }}>
                 <Text className="text-slate-800 font-black">Tekrar Dene</Text>
               </TouchableOpacity>
-
-              <TouchableOpacity
-                className="flex-1 bg-cyan-700 h-12 rounded-2xl items-center justify-center"
-                onPress={() => {
-                  setFetchError(null);
-                  navigation.navigate("Home");
-                }}
-              >
+              <TouchableOpacity className="flex-1 bg-cyan-700 h-12 rounded-2xl items-center justify-center" onPress={() => { setFetchError(null); navigation.navigate("Home"); }}>
                 <Text className="text-white font-black">Çıkış</Text>
               </TouchableOpacity>
             </View>
@@ -517,42 +479,21 @@ export default function GameScreen({ navigation }) {
         </View>
       </Modal>
 
-      <Modal
-        visible={!state.isActive && !state.isGameOver && state.timeLeft > 0 && !fetchError}
-        transparent
-        animationType="slide"
-      >
+      <Modal visible={!state.isActive && !state.isGameOver && state.timeLeft > 0 && !fetchError} transparent animationType="slide">
         <View className="flex-1 bg-indigo-900/98 items-center justify-center px-6">
           <View className="bg-white w-full p-8 rounded-[50px] items-center shadow-2xl">
             <View className="bg-amber-100 p-4 rounded-full mb-4">
               <Ionicons name="stats-chart" size={40} color="#f59e0b" />
             </View>
-
-            <Text className="text-slate-400 font-bold uppercase tracking-widest text-xs mb-2">
-              Tur Sonucu
-            </Text>
-
-            <Text className="text-fuchsia-700 text-3xl font-black mb-1 text-center">
-              {prevTeamName}
-            </Text>
+            <Text className="text-slate-400 font-bold uppercase tracking-widest text-xs mb-2">Tur Sonucu</Text>
+            <Text className="text-fuchsia-700 text-3xl font-black mb-1 text-center">{prevTeamName}</Text>
             <Text className="text-5xl font-black text-slate-800 mb-2">{prevTeamScore}</Text>
-
-            <Text className="text-slate-400 text-xs font-bold uppercase tracking-widest mb-6">
-              TUR {roundLabel}
-            </Text>
-
+            <Text className="text-slate-400 text-xs font-bold uppercase tracking-widest mb-6">TUR {roundLabel}</Text>
             <View className="w-full h-[1px] bg-slate-100 mb-6" />
-
             <Text className="text-slate-500 font-bold mb-8 text-center text-lg leading-6">
-              Harika iş çıkardınız!{"\n"}Şimdi sıra{" "}
-              <Text className="text-fuchsia-700 font-black">{activeTeamName}</Text> ekibinde.
+              Harika iş çıkardınız!{"\n"}Şimdi sıra <Text className="text-fuchsia-700 font-black">{activeTeamName}</Text> ekibinde.
             </Text>
-
-            <TouchableOpacity
-              className="bg-red-500 w-full py-6 rounded-3xl shadow-xl active:bg-indigo-700 active:scale-95"
-              onPress={startNextTurn}
-              disabled={isProcessingTurn}
-            >
+            <TouchableOpacity className="bg-red-500 w-full py-6 rounded-3xl shadow-xl active:bg-indigo-700 active:scale-95" onPress={startNextTurn} disabled={isProcessingTurn}>
               {isProcessingTurn ? (
                 <ActivityIndicator color="white" size="small" />
               ) : (

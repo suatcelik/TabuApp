@@ -15,7 +15,7 @@ const BUNDLE_THEMES = [
 ];
 
 export default function StoreScreen({ navigation }) {
-    const { settings, isThemeBundlePurchased, isExtraWordsPurchased, updateSettings } = useGameStore();
+    const { settings, isThemeBundlePurchased, isExtraWordsPurchased, isPremium, updateSettings } = useGameStore();
     const [loading, setLoading] = useState(false);
 
     const handleBuy = async (productId) => {
@@ -64,7 +64,27 @@ export default function StoreScreen({ navigation }) {
                     <Text className="ml-2 text-indigo-600 font-bold tracking-tight">Eski Satın Alımları Geri Yükle</Text>
                 </TouchableOpacity>
 
-                {/* 1. Kısım: Ekstra Kelime Paketi Satın Alma Banner'ı */}
+                {/* YENİ: Reklamları Kaldır Banner'ı */}
+                {!isPremium && (
+                    <View className="bg-rose-500 p-6 rounded-3xl shadow-xl shadow-rose-200 mb-6 items-center">
+                        <Ionicons name="ban" size={40} color="white" className="mb-2" />
+                        <Text className="text-white text-2xl font-black uppercase tracking-widest text-center mb-2">
+                            Reklamsız Deneyim
+                        </Text>
+                        <Text className="text-rose-100 text-center font-bold mb-4 text-xs px-2">
+                            Araya giren tüm reklamlardan sonsuza dek kurtul ve oyunun tadını kesintisiz çıkar!
+                        </Text>
+                        <TouchableOpacity
+                            className="bg-white px-8 py-3 rounded-2xl active:scale-95 w-full items-center"
+                            onPress={() => handleBuy("tabu_reklamsiz")}
+                            disabled={loading}
+                        >
+                            <Text className="text-rose-600 font-black text-lg uppercase tracking-wider">REKLAMLARI KALDIR</Text>
+                        </TouchableOpacity>
+                    </View>
+                )}
+
+                {/* Ekstra Kelime Paketi Satın Alma Banner'ı */}
                 {!isExtraWordsPurchased && (
                     <View className="bg-emerald-500 p-6 rounded-3xl shadow-xl shadow-emerald-200 mb-6 items-center">
                         <Ionicons name="library" size={40} color="white" className="mb-2" />
@@ -84,7 +104,7 @@ export default function StoreScreen({ navigation }) {
                     </View>
                 )}
 
-                {/* 2. Kısım: Tema Paketi Satın Alma Banner'ı */}
+                {/* Tema Paketi Satın Alma Banner'ı */}
                 {!isThemeBundlePurchased && (
                     <View className="bg-indigo-600 p-6 rounded-3xl shadow-xl shadow-indigo-200 mb-8 items-center">
                         <Ionicons name="color-palette" size={40} color="white" className="mb-2" />

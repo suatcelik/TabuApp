@@ -16,10 +16,10 @@ import { clearWordsCache } from "./wordService";
 
 const REMOVE_ADS_KEY = "REMOVE_ADS_V1";
 
-// "tabu_reklamsiz" ürünü App Store incelemesi için kaldırıldı
 export const PRODUCT_IDS = [
     "tabu_tema_paketi_1",
-    "tabu_ekstra_kelime_1"
+    "tabu_ekstra_kelime_1",
+    "tabu_reklamsiz" // Reklam kaldırma ürünü eklendi
 ];
 
 let purchaseUpdateSub = null;
@@ -28,7 +28,6 @@ let iapInited = false;
 const processedTokens = new Set();
 let busy = false;
 
-// App.js'in çökmemesi için bu fonksiyonlar tutuldu
 export async function getLocalRemoveAds() {
     const v = await AsyncStorage.getItem(REMOVE_ADS_KEY);
     return v === "1";
@@ -36,7 +35,6 @@ export async function getLocalRemoveAds() {
 
 export async function setLocalRemoveAds(enabled) {
     await AsyncStorage.setItem(REMOVE_ADS_KEY, enabled ? "1" : "0");
-    // adService kaldırıldığı için buradaki reklam engelleme servisi çağrısı silindi
 }
 
 export async function initIAP() {
@@ -73,6 +71,10 @@ export async function initIAP() {
                 } else if (purchase.productId === "tabu_ekstra_kelime_1") {
                     useGameStore.getState().unlockExtraWords();
                     clearWordsCache();
+                } else if (purchase.productId === "tabu_reklamsiz") {
+                    // Reklamları kaldır satın alımı
+                    useGameStore.getState().setPremiumStatus(true);
+                    await setLocalRemoveAds(true);
                 }
 
                 await finishTransaction({ purchase, isConsumable: false });

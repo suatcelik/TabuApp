@@ -1,24 +1,26 @@
 import React, { useEffect, useState } from "react";
-import {
-  View,
-  Text,
-  TouchableOpacity,
-  StatusBar,
-  ActivityIndicator
-} from "react-native";
+import { View, Text, TouchableOpacity, StatusBar, ActivityIndicator } from "react-native";
 import ConfettiCannon from "react-native-confetti-cannon";
 import useGameStore from "../store/useGameStore";
 import { Ionicons } from "@expo/vector-icons";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useAudioPlayer } from "expo-audio";
+import { InterstitialAd, AdEventType, TestIds } from 'react-native-google-mobile-ads';
+
+const adUnitId = __DEV__ ? TestIds.INTERSTITIAL : 'ca-app-pub-7780845735147349/8291922826';
+const interstitial = InterstitialAd.createForAdRequest(adUnitId, {
+  requestNonPersonalizedAdsOnly: true,
+});
 
 export default function ResultScreen({ navigation }) {
   const finalScores = useGameStore((s) => s.finalScores);
   const settings = useGameStore((s) => s.settings);
   const resetGame = useGameStore((s) => s.resetGame);
+  const isPremium = useGameStore((s) => s.isPremium);
 
   const [showConfetti, setShowConfetti] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [adLoaded, setAdLoaded] = useState(false);
 
   const winPlayer = useAudioPlayer(require("../../assets/success.mp3"));
 
@@ -34,23 +36,52 @@ export default function ResultScreen({ navigation }) {
         : "Berabere";
 
   useEffect(() => {
-    // Konfeti ve Ses
+    // REKLAM DİNLEYİCİLERİ
+    const unsubscribeLoaded = interstitial.addAdEventListener(AdEventType.LOADED, () => {
+      setAdLoaded(true);
+    });
+
+    const unsubscribeClosed = interstitial.addAdEventListener(AdEventType.CLOSED, () => {
+      // Reklam bitince Home'a dön
+      resetGame();
+      setIsProcessing(false);
+      navigation.navigate("Home");
+    });
+
+    if (!isPremium) {
+      interstitial.load();
+    }
+
     if (winnerKey !== "Draw") {
       const timer = setTimeout(() => {
         setShowConfetti(true);
         try { winPlayer.seekTo?.(0); winPlayer.play(); } catch (_) { }
       }, 500);
-      return () => clearTimeout(timer);
+
+      return () => {
+        clearTimeout(timer);
+        unsubscribeLoaded();
+        unsubscribeClosed();
+      };
     }
-  }, []);
+
+    return () => {
+      unsubscribeLoaded();
+      unsubscribeClosed();
+    };
+  }, [isPremium, winnerKey]);
 
   const handleNewGame = async () => {
-    if (isProcessing) return; // Çift tıklamayı önle
+    if (isProcessing) return;
     setIsProcessing(true);
 
-    resetGame();
-    setIsProcessing(false);
-    navigation.navigate("Home");
+    if (!isPremium && adLoaded) {
+      interstitial.show();
+    } else {
+      resetGame();
+      setIsProcessing(false);
+      navigation.navigate("Home");
+    }
   };
 
   return (
@@ -58,16 +89,10 @@ export default function ResultScreen({ navigation }) {
       <StatusBar barStyle="light-content" />
 
       {showConfetti && (
-        <ConfettiCannon
-          count={120}
-          origin={{ x: -10, y: 0 }}
-          fadeOut={true}
-          fallSpeed={2800}
-        />
+        <ConfettiCannon count={120} origin={{ x: -10, y: 0 }} fadeOut={true} fallSpeed={2800} />
       )}
 
       <View className="flex-1 items-center justify-center px-6">
-        {/* Kupa ve Başlık Alanı */}
         <View className="bg-amber-400 p-8 rounded-full mb-6 shadow-2xl">
           <Ionicons name="trophy" size={60} color="white" />
         </View>
@@ -80,7 +105,6 @@ export default function ResultScreen({ navigation }) {
           {winnerKey === "Draw" ? "Dostluk Kazandı!" : `${winnerName} KAZANDI!`}
         </Text>
 
-        {/* Skor Tablosu */}
         <View className="w-full bg-white/10 p-8 rounded-[40px] border border-white/20 shadow-xl mb-12">
           <View className="flex-row justify-around items-center">
             <View className="items-center flex-1">
@@ -103,7 +127,6 @@ export default function ResultScreen({ navigation }) {
           </View>
         </View>
 
-        {/* Buton Alanı */}
         <View className="w-full">
           <TouchableOpacity
             className={`bg-amber-400 w-full py-6 rounded-3xl shadow-2xl ${isProcessing ? 'opacity-80' : 'active:scale-95'}`}
