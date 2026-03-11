@@ -1,7 +1,6 @@
-import { initializeApp } from "firebase/app";
-import { getFirestore } from "firebase/firestore";
+import { initializeApp, getApps, getApp } from "firebase/app";
+import { initializeFirestore, getFirestore } from "firebase/firestore";
 
-// Firebase Console -> Proje Ayarları -> General altındaki SDK Setup'tan alacağın bilgiler:
 const firebaseConfig = {
     apiKey: "AIzaSyBSlx11bpMkZX-ZGwAcKMEopGtTIp59SFk",
     authDomain: "tabuapp-492a8.firebaseapp.com",
@@ -12,8 +11,20 @@ const firebaseConfig = {
     measurementId: "G-V8CE6SNYV0"
 };
 
-// Firebase'i başlat
-const app = initializeApp(firebaseConfig);
+// Uygulama zaten başlatıldıysa tekrar başlatma
+const app = getApps().length === 0
+    ? initializeApp(firebaseConfig)
+    : getApp();
 
-// Veritabanı (Firestore) referansını oluştur ve dışa aktar
-export const db = getFirestore(app);
+// Firestore: zaten init edildiyse getFirestore, değilse initializeFirestore
+let db;
+try {
+    db = initializeFirestore(app, {
+        experimentalForceLongPolling: true,
+    });
+} catch (e) {
+    // "already initialized" hatası → mevcut instance'ı al
+    db = getFirestore(app);
+}
+
+export { db };

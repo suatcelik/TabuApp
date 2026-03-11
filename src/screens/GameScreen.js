@@ -15,9 +15,12 @@ import { gameReducer, initialState } from "../reducers/gameReducer";
 import { saveScore } from "../services/leaderboardService";
 import { logRoundEnd } from "../services/analyticsService";
 import useGameStore from "../store/useGameStore";
+import { getProducts, buyProduct } from "../services/iapService";
 
 const LAST_FIRST_WORD_KEY = "LAST_FIRST_WORD_V1";
 const CARD_COLORS = ["bg-fuchsia-700", "bg-amber-400", "bg-sky-500", "bg-red-600"];
+const AD_COUNT_KEY = "AD_SHOWN_COUNT_V1";   // Kaç reklam gösterildi sayacı
+const UPSELL_EVERY = 3;                      // Her 3 reklamda bir popup göster
 
 // Geçiş reklamı objesini oluşturuyoruz
 const adUnitId = __DEV__ ? TestIds.INTERSTITIAL : 'ca-app-pub-7780845735147349/8291922826';
@@ -59,11 +62,16 @@ export default function GameScreen({ navigation }) {
   const [state, dispatch] = useReducer(gameReducer, initialState);
   const [fetchError, setFetchError] = useState(null);
   const [isProcessingTurn, setIsProcessingTurn] = useState(false);
-  const [adLoaded, setAdLoaded] = useState(false); // Reklam State'i
+  const [adLoaded, setAdLoaded] = useState(false);
+
+  // Reklam kaldırma upsell popup state'leri
+  const [showUpsell, setShowUpsell] = useState(false);
+  const [upsellPrice, setUpsellPrice] = useState(null);
+  const [isBuying, setIsBuying] = useState(false);
 
   const settings = useGameStore((s) => s.settings);
   const setFinalScores = useGameStore((s) => s.setFinalScores);
-  const isPremium = useGameStore((s) => s.isPremium); // Premium durumu çekildi
+  const isPremium = useGameStore((s) => s.isPremium);
 
   const successPlayer = useAudioPlayer(require("../../assets/success.mp3"));
   const errorPlayer = useAudioPlayer(require("../../assets/error.mp3"));
@@ -71,6 +79,27 @@ export default function GameScreen({ navigation }) {
 
   const intervalRef = useRef(null);
   const hasPlayedTickRef = useRef(false);
+  const pendingUpsellRef = useRef(false); // Reklam kapandıktan sonra upsell gösterilecek mi
+
+  // IAP fiyatını çek
+  useEffect(() => {
+    getProducts().then((products) => {
+      const p = products.find((x) => x.productId === "tabu_reklamsiz");
+      if (p) setUpsellPrice(p.localizedPrice ?? p.price ?? null);
+    }).catch(() => { });
+  }, []);
+
+  // Reklam sayacını artır, her 3'te bir upsell flag'ini işaretle
+  const incrementAdCount = async () => {
+    try {
+      const raw = await AsyncStorage.getItem(AD_COUNT_KEY);
+      const count = raw ? parseInt(raw, 10) + 1 : 1;
+      await AsyncStorage.setItem(AD_COUNT_KEY, String(count));
+      if (count % UPSELL_EVERY === 0) {
+        pendingUpsellRef.current = true;
+      }
+    } catch (_) { }
+  };
 
   // REKLAM YÜKLEME VE DİNLEME EFFECT'İ
   useEffect(() => {
@@ -80,10 +109,17 @@ export default function GameScreen({ navigation }) {
 
     const unsubscribeClosed = interstitial.addAdEventListener(AdEventType.CLOSED, () => {
       setAdLoaded(false);
-      interstitial.load(); // Kapanınca bir sonraki için yenisini yükle
+      interstitial.load();
       setIsProcessingTurn(false);
 
-      // Reklam kapandıktan sonra oyunu başlat
+      // Reklam kapandı — upsell gösterilecek mi?
+      if (pendingUpsellRef.current) {
+        pendingUpsellRef.current = false;
+        setShowUpsell(true); // Önce upsell göster, oyun ondan sonra başlayacak
+        return;
+      }
+
+      // Upsell yok, direkt oyunu başlat
       hasPlayedTickRef.current = false;
       dispatch({ type: "START_TURN" });
     });
@@ -97,6 +133,29 @@ export default function GameScreen({ navigation }) {
       unsubscribeClosed();
     };
   }, [isPremium]);
+
+  // Upsell kapatılınca tur başlasın
+  const handleUpsellClose = () => {
+    setShowUpsell(false);
+    hasPlayedTickRef.current = false;
+    dispatch({ type: "START_TURN" });
+  };
+
+  // Satın al butonuna basıldı
+  const handleBuyRemoveAds = async () => {
+    try {
+      setIsBuying(true);
+      await buyProduct("tabu_reklamsiz");
+      setShowUpsell(false);
+      // isPremium store'da güncellenir, oyun zaten devam edecek
+      hasPlayedTickRef.current = false;
+      dispatch({ type: "START_TURN" });
+    } catch (e) {
+      Alert.alert("Hata", e?.message || "Satın alma başarısız oldu.");
+    } finally {
+      setIsBuying(false);
+    }
+  };
 
   const playSound = (type) => {
     try {
@@ -281,7 +340,6 @@ export default function GameScreen({ navigation }) {
     if (isProcessingTurn) return;
     setIsProcessingTurn(true);
 
-    // Her 2 turun sonunda (Yani A takımının 3., 5., 7. turlarına başlarken reklam göster)
     if (
       !isPremium &&
       adLoaded &&
@@ -289,8 +347,9 @@ export default function GameScreen({ navigation }) {
       state.roundNumber > 1 &&
       state.roundNumber % 2 !== 0
     ) {
+      await incrementAdCount(); // sayacı artır, upsell flag'ini kontrol et
       interstitial.show();
-      return; // İşleme CLOSED eventinde devam edilecek
+      return;
     }
 
     hasPlayedTickRef.current = false;
@@ -462,6 +521,7 @@ export default function GameScreen({ navigation }) {
         </TouchableOpacity>
       </View>
 
+      {/* Bağlantı Hatası Modal */}
       <Modal visible={!!fetchError} transparent animationType="fade">
         <View className="flex-1 items-center justify-center bg-black/40 px-6">
           <View className="bg-white w-full rounded-3xl p-6">
@@ -479,6 +539,7 @@ export default function GameScreen({ navigation }) {
         </View>
       </Modal>
 
+      {/* Tur Arası Modal */}
       <Modal visible={!state.isActive && !state.isGameOver && state.timeLeft > 0 && !fetchError} transparent animationType="slide">
         <View className="flex-1 bg-indigo-900/98 items-center justify-center px-6">
           <View className="bg-white w-full p-8 rounded-[50px] items-center shadow-2xl">
@@ -505,6 +566,69 @@ export default function GameScreen({ navigation }) {
           </View>
         </View>
       </Modal>
+
+      {/* Reklam Kaldırma Upsell Popup */}
+      <Modal visible={showUpsell} transparent animationType="fade">
+        <View className="flex-1 items-center justify-center bg-black/60 px-6">
+          <View className="bg-white w-full rounded-[40px] overflow-hidden shadow-2xl">
+
+            {/* Üst renkli alan */}
+            <View className="bg-fuchsia-700 pt-8 pb-6 items-center px-6">
+              <View className="bg-white/20 p-4 rounded-full mb-3">
+                <Ionicons name="ban" size={40} color="white" />
+              </View>
+              <Text className="text-white text-2xl font-black text-center">
+                Reklamlardan Bıktın mı?
+              </Text>
+              <Text className="text-fuchsia-200 text-sm font-bold text-center mt-1">
+                Tek seferlik ödeme, sonsuza kadar reklamsız!
+              </Text>
+            </View>
+
+            {/* Alt içerik */}
+            <View className="px-6 pt-6 pb-8">
+              {/* Özellikler */}
+              <View className="gap-3 mb-6">
+                {[
+                  { icon: "checkmark-circle", text: "Hiç reklam yok" },
+                  { icon: "checkmark-circle", text: "Turlar arasında kesintisiz oyun" },
+                  { icon: "checkmark-circle", text: "Tek seferlik satın al, ömür boyu kullan" },
+                ].map((item) => (
+                  <View key={item.text} className="flex-row items-center gap-3">
+                    <Ionicons name={item.icon} size={22} color="#a21caf" />
+                    <Text className="text-slate-700 font-bold text-base">{item.text}</Text>
+                  </View>
+                ))}
+              </View>
+
+              {/* Satın Al Butonu */}
+              <TouchableOpacity
+                className="bg-fuchsia-700 w-full py-5 rounded-2xl items-center mb-3 shadow-lg shadow-fuchsia-200 active:scale-95"
+                onPress={handleBuyRemoveAds}
+                disabled={isBuying}
+              >
+                {isBuying ? (
+                  <ActivityIndicator color="white" size="small" />
+                ) : (
+                  <Text className="text-white font-black text-lg">
+                    Reklamları Kaldır {upsellPrice ? `— ${upsellPrice}` : ""}
+                  </Text>
+                )}
+              </TouchableOpacity>
+
+              {/* Kapat */}
+              <TouchableOpacity
+                className="w-full py-4 items-center"
+                onPress={handleUpsellClose}
+                disabled={isBuying}
+              >
+                <Text className="text-slate-400 font-bold text-sm">Hayır, devam et</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
     </SafeAreaView>
   );
 }
