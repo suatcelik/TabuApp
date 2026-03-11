@@ -19,8 +19,8 @@ import { getProducts, buyProduct } from "../services/iapService";
 
 const LAST_FIRST_WORD_KEY = "LAST_FIRST_WORD_V1";
 const CARD_COLORS = ["bg-fuchsia-700", "bg-amber-400", "bg-sky-500", "bg-red-600"];
-const AD_COUNT_KEY = "AD_SHOWN_COUNT_V1";   // Kaç reklam gösterildi sayacı
-const UPSELL_EVERY = 3;                      // Her 3 reklamda bir popup göster
+const AD_COUNT_KEY = "AD_SHOWN_COUNT_V1";
+const UPSELL_EVERY = 3; // Her 3 reklamda bir upsell göster
 
 // Geçiş reklamı objesini oluşturuyoruz
 const adUnitId = __DEV__ ? TestIds.INTERSTITIAL : 'ca-app-pub-7780845735147349/8291922826';
@@ -79,7 +79,22 @@ export default function GameScreen({ navigation }) {
 
   const intervalRef = useRef(null);
   const hasPlayedTickRef = useRef(false);
-  const pendingUpsellRef = useRef(false); // Reklam kapandıktan sonra upsell gösterilecek mi
+  const pendingUpsellRef = useRef(false);
+
+  // FIX: Satın alma sonrası START_TURN'ün güvenli tetiklenmesi için ref
+  // Race condition önlemi: buyProduct resolve olunca isPremium henüz true olmayabilir
+  // Bu yüzden satın alma sonrası START_TURN'ü doğrudan burada tetiklemiyoruz,
+  // isPremium değişince useEffect ile tetikliyoruz.
+  const pendingStartAfterPurchaseRef = useRef(false);
+
+  // isPremium true olunca eğer satın alma sonrası bekleyen START_TURN varsa tetikle
+  useEffect(() => {
+    if (isPremium && pendingStartAfterPurchaseRef.current) {
+      pendingStartAfterPurchaseRef.current = false;
+      hasPlayedTickRef.current = false;
+      dispatch({ type: "START_TURN" });
+    }
+  }, [isPremium]);
 
   // IAP fiyatını çek
   useEffect(() => {
@@ -115,11 +130,23 @@ export default function GameScreen({ navigation }) {
       // Reklam kapandı — upsell gösterilecek mi?
       if (pendingUpsellRef.current) {
         pendingUpsellRef.current = false;
-        setShowUpsell(true); // Önce upsell göster, oyun ondan sonra başlayacak
+        setShowUpsell(true);
         return;
       }
 
       // Upsell yok, direkt oyunu başlat
+      hasPlayedTickRef.current = false;
+      dispatch({ type: "START_TURN" });
+    });
+
+    // FIX: ERROR handler eklendi
+    // Reklam gösterimi sırasında hata olursa isProcessingTurn takılı kalıyordu,
+    // buton sonsuza disabled kalıyordu. Artık hata durumunda da oyun devam eder.
+    const unsubscribeError = interstitial.addAdEventListener(AdEventType.ERROR, () => {
+      setAdLoaded(false);
+      setIsProcessingTurn(false);
+      interstitial.load(); // Yeni reklam yüklemeye çalış
+      // Oyunu bloklamadan devam et
       hasPlayedTickRef.current = false;
       dispatch({ type: "START_TURN" });
     });
@@ -131,6 +158,7 @@ export default function GameScreen({ navigation }) {
     return () => {
       unsubscribeLoaded();
       unsubscribeClosed();
+      unsubscribeError(); // FIX: cleanup'a eklendi
     };
   }, [isPremium]);
 
@@ -141,17 +169,27 @@ export default function GameScreen({ navigation }) {
     dispatch({ type: "START_TURN" });
   };
 
-  // Satın al butonuna basıldı
+  // FIX: Satın al butonuna basıldı — race condition düzeltildi
+  // Eski kod: buyProduct resolve olunca hemen START_TURN tetikliyordu.
+  // Sorun: iOS'ta requestPurchase hemen resolve olur ama isPremium henüz
+  // güncellenmemiş olabilir. Kullanıcı para ödedi ama reklam görebilirdi.
+  // Yeni davranış: pendingStartAfterPurchaseRef ile isPremium'un true olmasını bekle.
   const handleBuyRemoveAds = async () => {
     try {
       setIsBuying(true);
       await buyProduct("tabu_reklamsiz");
       setShowUpsell(false);
-      // isPremium store'da güncellenir, oyun zaten devam edecek
+      // isPremium store'da purchaseUpdatedListener tarafından güncellenecek.
+      // isPremium true olunca yukarıdaki useEffect START_TURN'ü tetikleyecek.
+      pendingStartAfterPurchaseRef.current = true;
+    } catch (e) {
+      // Satın alma başarısız veya iptal — popup'ı kapat ve oyunu devam ettir
+      setShowUpsell(false);
       hasPlayedTickRef.current = false;
       dispatch({ type: "START_TURN" });
-    } catch (e) {
-      Alert.alert("Hata", e?.message || "Satın alma başarısız oldu.");
+      if (e?.message) {
+        Alert.alert("Hata", e.message);
+      }
     } finally {
       setIsBuying(false);
     }
@@ -340,14 +378,16 @@ export default function GameScreen({ navigation }) {
     if (isProcessingTurn) return;
     setIsProcessingTurn(true);
 
+    // FIX: Reklam gösterim koşulu düzeltildi
+    // Eski kod: activeTeam === "A" && roundNumber > 1 && roundNumber % 2 !== 0
+    // Bu koşul 4 roundluk oyunda sadece 1 kez reklam gösteriyordu.
+    // Yeni koşul: roundNumber > 1 yeterli — her tur geçişinde (1. tur hariç) reklam göster.
     if (
       !isPremium &&
       adLoaded &&
-      state.activeTeam === "A" &&
-      state.roundNumber > 1 &&
-      state.roundNumber % 2 !== 0
+      state.roundNumber > 1
     ) {
-      await incrementAdCount(); // sayacı artır, upsell flag'ini kontrol et
+      await incrementAdCount();
       interstitial.show();
       return;
     }
@@ -505,17 +545,35 @@ export default function GameScreen({ navigation }) {
       </View>
 
       <View className="flex-row px-6 pb-10 gap-4 z-10">
-        <TouchableOpacity className="flex-1 bg-fuchsia-700 h-24 rounded-3xl items-center justify-center shadow-lg shadow-rose-200 active:scale-95" onPress={onTaboo} disabled={!state.isActive}>
+        <TouchableOpacity
+          className="flex-1 bg-fuchsia-700 h-24 rounded-3xl items-center justify-center shadow-lg shadow-rose-200 active:scale-95"
+          onPress={onTaboo}
+          disabled={!state.isActive}
+        >
           <Ionicons name="close-circle" size={32} color="white" />
           <Text className="text-white font-black uppercase mt-1">Tabu</Text>
         </TouchableOpacity>
 
-        <TouchableOpacity className="flex-1 bg-amber-400 h-24 rounded-3xl items-center justify-center shadow-lg shadow-amber-200 active:scale-95" onPress={onPass} disabled={!state.isActive}>
-          <Ionicons name="refresh-circle" size={32} color="white" />
-          <Text className="text-white font-black uppercase mt-1">Pas</Text>
+        {/* FIX: Pas butonu 0'da görsel olarak disabled gösteriliyor */}
+        <TouchableOpacity
+          className={`flex-1 h-24 rounded-3xl items-center justify-center shadow-lg active:scale-95 ${state.passCount <= 0 || !state.isActive
+              ? "bg-slate-300 shadow-slate-100"
+              : "bg-amber-400 shadow-amber-200"
+            }`}
+          onPress={onPass}
+          disabled={!state.isActive || state.passCount <= 0}
+        >
+          <Ionicons name="refresh-circle" size={32} color={state.passCount <= 0 || !state.isActive ? "#94a3b8" : "white"} />
+          <Text className={`font-black uppercase mt-1 ${state.passCount <= 0 || !state.isActive ? "text-slate-400" : "text-white"}`}>
+            Pas
+          </Text>
         </TouchableOpacity>
 
-        <TouchableOpacity className="flex-1 bg-sky-500 h-24 rounded-3xl items-center justify-center shadow-lg shadow-emerald-200 active:scale-95" onPress={onCorrect} disabled={!state.isActive}>
+        <TouchableOpacity
+          className="flex-1 bg-sky-500 h-24 rounded-3xl items-center justify-center shadow-lg shadow-emerald-200 active:scale-95"
+          onPress={onCorrect}
+          disabled={!state.isActive}
+        >
           <Ionicons name="checkmark-circle" size={32} color="white" />
           <Text className="text-white font-black uppercase mt-1">Doğru</Text>
         </TouchableOpacity>
@@ -528,10 +586,20 @@ export default function GameScreen({ navigation }) {
             <Text className="text-lg font-black mb-2">Bağlantı Sorunu</Text>
             <Text className="text-base mb-4">{fetchError}</Text>
             <View className="flex-row gap-3">
-              <TouchableOpacity className="flex-1 bg-slate-200 h-12 rounded-2xl items-center justify-center" onPress={async () => { try { await clearWordsCache?.(); } catch (_) { } setFetchError(null); initGame(); }}>
+              <TouchableOpacity
+                className="flex-1 bg-slate-200 h-12 rounded-2xl items-center justify-center"
+                onPress={async () => {
+                  try { await clearWordsCache?.(); } catch (_) { }
+                  setFetchError(null);
+                  initGame();
+                }}
+              >
                 <Text className="text-slate-800 font-black">Tekrar Dene</Text>
               </TouchableOpacity>
-              <TouchableOpacity className="flex-1 bg-cyan-700 h-12 rounded-2xl items-center justify-center" onPress={() => { setFetchError(null); navigation.navigate("Home"); }}>
+              <TouchableOpacity
+                className="flex-1 bg-cyan-700 h-12 rounded-2xl items-center justify-center"
+                onPress={() => { setFetchError(null); navigation.navigate("Home"); }}
+              >
                 <Text className="text-white font-black">Çıkış</Text>
               </TouchableOpacity>
             </View>
@@ -554,7 +622,11 @@ export default function GameScreen({ navigation }) {
             <Text className="text-slate-500 font-bold mb-8 text-center text-lg leading-6">
               Harika iş çıkardınız!{"\n"}Şimdi sıra <Text className="text-fuchsia-700 font-black">{activeTeamName}</Text> ekibinde.
             </Text>
-            <TouchableOpacity className="bg-red-500 w-full py-6 rounded-3xl shadow-xl active:bg-indigo-700 active:scale-95" onPress={startNextTurn} disabled={isProcessingTurn}>
+            <TouchableOpacity
+              className="bg-red-500 w-full py-6 rounded-3xl shadow-xl active:bg-indigo-700 active:scale-95"
+              onPress={startNextTurn}
+              disabled={isProcessingTurn}
+            >
               {isProcessingTurn ? (
                 <ActivityIndicator color="white" size="small" />
               ) : (

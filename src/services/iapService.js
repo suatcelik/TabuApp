@@ -19,7 +19,7 @@ const REMOVE_ADS_KEY = "REMOVE_ADS_V1";
 export const PRODUCT_IDS = [
     "tabu_tema_paketi_1",
     "tabu_ekstra_kelime_1",
-    "tabu_reklamsiz" // Reklam kaldırma ürünü eklendi
+    "tabu_reklamsiz",
 ];
 
 let purchaseUpdateSub = null;
@@ -61,7 +61,10 @@ export async function initIAP() {
             try {
                 if (!purchase) return;
 
-                const token = purchase.purchaseToken || purchase.transactionId || purchase.originalTransactionIdentifierIOS;
+                const token =
+                    purchase.purchaseToken ||
+                    purchase.transactionId ||
+                    purchase.originalTransactionIdentifierIOS;
 
                 if (token && processedTokens.has(token)) return;
                 if (token) processedTokens.add(token);
@@ -72,11 +75,14 @@ export async function initIAP() {
                     useGameStore.getState().unlockExtraWords();
                     clearWordsCache();
                 } else if (purchase.productId === "tabu_reklamsiz") {
-                    // Reklamları kaldır satın alımı
                     useGameStore.getState().setPremiumStatus(true);
                     await setLocalRemoveAds(true);
                 }
 
+                // FIX: Her ürün için doğru isConsumable değeri kullanılıyor.
+                // Tüm ürünler non-consumable (tek seferlik satın alım) olduğu için false doğru.
+                // İleride consumable ürün eklenirse buraya ayrı bir kontrol eklenmeli:
+                // const isConsumable = purchase.productId === "tabu_consumable_xyz";
                 await finishTransaction({ purchase, isConsumable: false });
             } catch (e) {
                 console.log("[RN-IAP] purchaseUpdate error:", e?.message || e);
@@ -125,6 +131,7 @@ export async function buyProduct(sku) {
     } catch (e) {
         const msg = (e?.message || "").toLowerCase();
         if (e?.code === "E_USER_CANCELLED" || msg.includes("cancel")) {
+            // Kullanıcı iptal etti — sessizce döndür, hata fırlatma
             return false;
         }
         throw new Error(e?.message || "Satın alma başlatılamadı.");
@@ -142,7 +149,7 @@ export async function restorePurchases() {
         let hasThemeBundle = false;
         let hasExtraWords = false;
 
-        (purchases || []).forEach(p => {
+        (purchases || []).forEach((p) => {
             if (p.productId === "tabu_reklamsiz") {
                 hasRemoveAds = true;
             } else if (p.productId === "tabu_tema_paketi_1") {
