@@ -5,12 +5,7 @@ import useGameStore from "../store/useGameStore";
 import { Ionicons } from "@expo/vector-icons";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useAudioPlayer } from "expo-audio";
-import { InterstitialAd, AdEventType, TestIds } from 'react-native-google-mobile-ads';
-
-const adUnitId = __DEV__ ? TestIds.INTERSTITIAL : 'ca-app-pub-7780845735147349/8291922826';
-const interstitial = InterstitialAd.createForAdRequest(adUnitId, {
-  requestNonPersonalizedAdsOnly: true,
-});
+import { loadAd, subscribeAdEvent, showAd, AdEventType } from '../services/adService';
 
 export default function ResultScreen({ navigation }) {
   const finalScores = useGameStore((s) => s.finalScores);
@@ -37,32 +32,28 @@ export default function ResultScreen({ navigation }) {
 
   useEffect(() => {
     // REKLAM DİNLEYİCİLERİ
-    const unsubscribeLoaded = interstitial.addAdEventListener(AdEventType.LOADED, () => {
+    const unsubscribeLoaded = subscribeAdEvent(AdEventType.LOADED, () => {
       setAdLoaded(true);
     });
 
-    const unsubscribeClosed = interstitial.addAdEventListener(AdEventType.CLOSED, () => {
+    const unsubscribeClosed = subscribeAdEvent(AdEventType.CLOSED, () => {
       // Reklam bitince Home'a dön
       resetGame();
       setIsProcessing(false);
       navigation.navigate("Home");
     });
 
-    // FIX: ERROR handler eklendi
-    // Reklam gösterimi sırasında hata olursa isProcessing takılı kalıyordu,
-    // "Yeni Oyun" butonu sonsuza disabled kalıyordu. Artık hata durumunda da
-    // oyun bloklanmadan Home'a yönlendirilir.
-    const unsubscribeError = interstitial.addAdEventListener(AdEventType.ERROR, () => {
+    // Reklam gösterimi sırasında hata olursa isProcessing takılı kalıyordu.
+    // Hata durumunda da oyun bloklanmadan Home'a yönlendirilir.
+    const unsubscribeError = subscribeAdEvent(AdEventType.ERROR, () => {
       setAdLoaded(false);
       setIsProcessing(false);
-      interstitial.load(); // Sonraki kullanım için yeni reklam yükle
+      loadAd(isPremium);
       resetGame();
       navigation.navigate("Home");
     });
 
-    if (!isPremium) {
-      interstitial.load();
-    }
+    loadAd(isPremium);
 
     if (winnerKey !== "Draw") {
       const timer = setTimeout(() => {
@@ -90,7 +81,7 @@ export default function ResultScreen({ navigation }) {
     setIsProcessing(true);
 
     if (!isPremium && adLoaded) {
-      interstitial.show();
+      showAd();
     } else {
       resetGame();
       setIsProcessing(false);

@@ -16,7 +16,8 @@
       "bundleIdentifier": "com.arcodiba.tabuapp",
       "buildNumber": "7",
       "infoPlist": {
-        "ITSAppUsesNonExemptEncryption": false
+        "ITSAppUsesNonExemptEncryption": false,
+        "NSUserTrackingUsageDescription": "Sana daha alakalı reklamlar gösterebilmek için izin istiyoruz. İzin vermezsen reklamlar görünmeye devam eder ancak kişiselleştirilmez."
       }
     },
     "android": {
@@ -38,6 +39,7 @@
     "plugins": [
       "expo-font",
       "expo-asset",
+      "expo-tracking-transparency",
       "react-native-iap",
       [
         "expo-notifications",

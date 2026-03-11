@@ -166,6 +166,19 @@ export default function App() {
     setupDailyNotifications();
     handleLaunchCount();
 
+    // ATT — iOS 14+ için zorunlu. Android'de bu modül bulunmaz, dynamic import şart.
+    if (Platform.OS === "ios") {
+      (async () => {
+        try {
+          const { requestTrackingPermissionsAsync } = await import("expo-tracking-transparency");
+          const { status } = await requestTrackingPermissionsAsync();
+          console.log("[ATT] Tracking permission status:", status);
+        } catch (e) {
+          console.log("[ATT] İzin isteği hatası:", e);
+        }
+      })();
+    }
+
     (async () => {
       try {
         await initIAP();

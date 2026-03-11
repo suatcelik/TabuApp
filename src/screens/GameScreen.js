@@ -8,7 +8,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useAudioPlayer } from "expo-audio";
 // REKLAM İMPORTLARI
-import { InterstitialAd, AdEventType, TestIds } from 'react-native-google-mobile-ads';
+import { loadAd, subscribeAdEvent, showAd, AdEventType } from '../services/adService';
 
 import { loadWordsOfflineFirst, clearWordsCache } from "../services/wordService";
 import { gameReducer, initialState } from "../reducers/gameReducer";
@@ -21,12 +21,6 @@ const LAST_FIRST_WORD_KEY = "LAST_FIRST_WORD_V1";
 const CARD_COLORS = ["bg-fuchsia-700", "bg-amber-400", "bg-sky-500", "bg-red-600"];
 const AD_COUNT_KEY = "AD_SHOWN_COUNT_V1";
 const UPSELL_EVERY = 3; // Her 3 reklamda bir upsell göster
-
-// Geçiş reklamı objesini oluşturuyoruz
-const adUnitId = __DEV__ ? TestIds.INTERSTITIAL : 'ca-app-pub-7780845735147349/8291922826';
-const interstitial = InterstitialAd.createForAdRequest(adUnitId, {
-  requestNonPersonalizedAdsOnly: true,
-});
 
 const shuffleWords = (words) => {
   const arr = [...words];
@@ -118,13 +112,13 @@ export default function GameScreen({ navigation }) {
 
   // REKLAM YÜKLEME VE DİNLEME EFFECT'İ
   useEffect(() => {
-    const unsubscribeLoaded = interstitial.addAdEventListener(AdEventType.LOADED, () => {
+    const unsubscribeLoaded = subscribeAdEvent(AdEventType.LOADED, () => {
       setAdLoaded(true);
     });
 
-    const unsubscribeClosed = interstitial.addAdEventListener(AdEventType.CLOSED, () => {
+    const unsubscribeClosed = subscribeAdEvent(AdEventType.CLOSED, () => {
       setAdLoaded(false);
-      interstitial.load();
+      loadAd(isPremium);
       setIsProcessingTurn(false);
 
       // Reklam kapandı — upsell gösterilecek mi?
@@ -139,26 +133,22 @@ export default function GameScreen({ navigation }) {
       dispatch({ type: "START_TURN" });
     });
 
-    // FIX: ERROR handler eklendi
-    // Reklam gösterimi sırasında hata olursa isProcessingTurn takılı kalıyordu,
-    // buton sonsuza disabled kalıyordu. Artık hata durumunda da oyun devam eder.
-    const unsubscribeError = interstitial.addAdEventListener(AdEventType.ERROR, () => {
+    // Reklam gösterimi sırasında hata olursa isProcessingTurn takılı kalıyordu.
+    // Hata durumunda da oyun devam eder.
+    const unsubscribeError = subscribeAdEvent(AdEventType.ERROR, () => {
       setAdLoaded(false);
       setIsProcessingTurn(false);
-      interstitial.load(); // Yeni reklam yüklemeye çalış
-      // Oyunu bloklamadan devam et
+      loadAd(isPremium);
       hasPlayedTickRef.current = false;
       dispatch({ type: "START_TURN" });
     });
 
-    if (!isPremium) {
-      interstitial.load();
-    }
+    loadAd(isPremium);
 
     return () => {
       unsubscribeLoaded();
       unsubscribeClosed();
-      unsubscribeError(); // FIX: cleanup'a eklendi
+      unsubscribeError();
     };
   }, [isPremium]);
 
@@ -388,7 +378,7 @@ export default function GameScreen({ navigation }) {
       state.roundNumber > 1
     ) {
       await incrementAdCount();
-      interstitial.show();
+      showAd();
       return;
     }
 
@@ -557,8 +547,8 @@ export default function GameScreen({ navigation }) {
         {/* FIX: Pas butonu 0'da görsel olarak disabled gösteriliyor */}
         <TouchableOpacity
           className={`flex-1 h-24 rounded-3xl items-center justify-center shadow-lg active:scale-95 ${state.passCount <= 0 || !state.isActive
-              ? "bg-slate-300 shadow-slate-100"
-              : "bg-amber-400 shadow-amber-200"
+            ? "bg-slate-300 shadow-slate-100"
+            : "bg-amber-400 shadow-amber-200"
             }`}
           onPress={onPass}
           disabled={!state.isActive || state.passCount <= 0}
