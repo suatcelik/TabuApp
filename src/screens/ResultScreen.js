@@ -48,6 +48,18 @@ export default function ResultScreen({ navigation }) {
       navigation.navigate("Home");
     });
 
+    // FIX: ERROR handler eklendi
+    // Reklam gösterimi sırasında hata olursa isProcessing takılı kalıyordu,
+    // "Yeni Oyun" butonu sonsuza disabled kalıyordu. Artık hata durumunda da
+    // oyun bloklanmadan Home'a yönlendirilir.
+    const unsubscribeError = interstitial.addAdEventListener(AdEventType.ERROR, () => {
+      setAdLoaded(false);
+      setIsProcessing(false);
+      interstitial.load(); // Sonraki kullanım için yeni reklam yükle
+      resetGame();
+      navigation.navigate("Home");
+    });
+
     if (!isPremium) {
       interstitial.load();
     }
@@ -62,12 +74,14 @@ export default function ResultScreen({ navigation }) {
         clearTimeout(timer);
         unsubscribeLoaded();
         unsubscribeClosed();
+        unsubscribeError(); // FIX: cleanup'a eklendi
       };
     }
 
     return () => {
       unsubscribeLoaded();
       unsubscribeClosed();
+      unsubscribeError(); // FIX: cleanup'a eklendi
     };
   }, [isPremium, winnerKey]);
 
