@@ -2,13 +2,13 @@ import { initializeApp, getApps, getApp } from "firebase/app";
 import { initializeFirestore, getFirestore } from "firebase/firestore";
 
 const firebaseConfig = {
-    apiKey: "AIzaSyBSlx11bpMkZX-ZGwAcKMEopGtTIp59SFk",
-    authDomain: "tabuapp-492a8.firebaseapp.com",
-    projectId: "tabuapp-492a8",
-    storageBucket: "tabuapp-492a8.firebasestorage.app",
-    messagingSenderId: "968460844342",
-    appId: "1:968460844342:web:2b34694072be8fef9e8797",
-    measurementId: "G-V8CE6SNYV0"
+    apiKey: process.env.EXPO_PUBLIC_FIREBASE_API_KEY,
+    authDomain: process.env.EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN,
+    projectId: process.env.EXPO_PUBLIC_FIREBASE_PROJECT_ID,
+    storageBucket: process.env.EXPO_PUBLIC_FIREBASE_STORAGE_BUCKET,
+    messagingSenderId: process.env.EXPO_PUBLIC_FIREBASE_MESSAGING_SENDER_ID,
+    appId: process.env.EXPO_PUBLIC_FIREBASE_APP_ID,
+    measurementId: process.env.EXPO_PUBLIC_FIREBASE_MEASUREMENT_ID,
 };
 
 // Uygulama zaten başlatıldıysa tekrar başlatma
