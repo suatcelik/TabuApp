@@ -1,9 +1,10 @@
 import React, { useState } from "react";
-import { View, Text, TouchableOpacity, ScrollView, StatusBar, ActivityIndicator, Alert } from "react-native";
+import { View, Text, TouchableOpacity, ScrollView, StatusBar, ActivityIndicator } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import useGameStore from "../store/useGameStore";
 import { buyProduct, restorePurchases } from "../services/iapService";
+import CustomAlert from "../components/CustomAlert"; // YENİ EKLENDİ
 
 const BUNDLE_THEMES = [
     { id: 'default', name: 'Klasik Parti', icon: 'mic', color: 'text-fuchsia-500', bg: 'bg-fuchsia-100' },
@@ -17,13 +18,14 @@ const BUNDLE_THEMES = [
 export default function StoreScreen({ navigation }) {
     const { settings, isThemeBundlePurchased, isExtraWordsPurchased, isPremium, updateSettings } = useGameStore();
     const [loading, setLoading] = useState(false);
+    const [alertConfig, setAlertConfig] = useState(null); // YENİ EKLENDİ
 
     const handleBuy = async (productId) => {
         setLoading(true);
         try {
             await buyProduct(productId);
         } catch (error) {
-            Alert.alert("Hata", error.message);
+            setAlertConfig({ title: "Hata", message: error.message }); // DEĞİŞTİRİLDİ
         } finally {
             setLoading(false);
         }
@@ -33,9 +35,9 @@ export default function StoreScreen({ navigation }) {
         setLoading(true);
         try {
             await restorePurchases();
-            Alert.alert("Başarılı", "Önceki satın alımlarınız geri yüklendi.");
+            setAlertConfig({ title: "Başarılı", message: "Önceki satın alımlarınız geri yüklendi." }); // DEĞİŞTİRİLDİ
         } catch (error) {
-            Alert.alert("Hata", error.message);
+            setAlertConfig({ title: "Hata", message: error.message }); // DEĞİŞTİRİLDİ
         } finally {
             setLoading(false);
         }
@@ -139,7 +141,11 @@ export default function StoreScreen({ navigation }) {
                                     if (isUnlocked) {
                                         updateSettings({ selectedTheme: theme.id });
                                     } else {
-                                        Alert.alert("Kilitli", "Bu tasarımı kullanmak için yukarıdan Kozmetik Paketini satın almalısınız.");
+                                        // DEĞİŞTİRİLDİ
+                                        setAlertConfig({
+                                            title: "Kilitli",
+                                            message: "Bu tasarımı kullanmak için yukarıdan Kozmetik Paketini satın almalısınız."
+                                        });
                                     }
                                 }}
                                 disabled={loading}
@@ -171,6 +177,13 @@ export default function StoreScreen({ navigation }) {
                     <Text className="text-indigo-600 font-black mt-4 uppercase">İşleniyor...</Text>
                 </View>
             )}
+
+            {/* YENİ EKLENDİ */}
+            <CustomAlert
+                visible={!!alertConfig}
+                {...alertConfig}
+                onClose={() => setAlertConfig(null)}
+            />
         </SafeAreaView>
     );
 }

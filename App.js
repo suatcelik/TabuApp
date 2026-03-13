@@ -1,7 +1,6 @@
-// App.js
 import "./global.css";
 import React, { useEffect, useState } from "react";
-import { StatusBar, Platform, Linking, Alert } from "react-native";
+import { StatusBar, Platform, Linking } from "react-native";
 import { NavigationContainer } from "@react-navigation/native";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
@@ -11,6 +10,7 @@ import * as StoreReview from "expo-store-review";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
 import ErrorBoundary from "./src/components/ErrorBoundary";
+import CustomAlert from "./src/components/CustomAlert"; // YENİ EKLENDİ
 
 import {
   initIAP,
@@ -19,7 +19,6 @@ import {
   getLocalRemoveAds,
 } from "./src/services/iapService";
 
-// Ekranların import yolları
 import HomeScreen from "./src/screens/HomeScreen";
 import GameScreen from "./src/screens/GameScreen";
 import SettingsScreen from "./src/screens/SettingsScreen";
@@ -27,7 +26,6 @@ import ResultScreen from "./src/screens/ResultScreen";
 import PrivacyPolicyScreen from "./src/screens/PrivacyPolicyScreen";
 import StoreScreen from "./src/screens/StoreScreen";
 
-// Uygulama açıkken bile bildirimlerin yukarıdan düşmesini sağlar
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
     shouldShowAlert: true,
@@ -38,7 +36,6 @@ Notifications.setNotificationHandler({
 
 const Stack = createNativeStackNavigator();
 
-// Mağaza linkleri (App Store ID'ni kendi ID'nle güncelle)
 const STORE_URL = Platform.select({
   ios: "https://apps.apple.com/app/id6743347320",
   android: "https://play.google.com/store/apps/details?id=com.arcodiba.tabuapp",
@@ -46,59 +43,54 @@ const STORE_URL = Platform.select({
 
 const LAUNCH_COUNT_KEY = "APP_LAUNCH_COUNT_V1";
 const REVIEW_ASKED_KEY = "REVIEW_ASKED_V1";
-const REVIEW_THRESHOLD = 3; // 3. açılışta sor
-
-// Rating isteği: önce native, olmadı mağaza linkine yönlendir
-const requestRating = async () => {
-  try {
-    const isAvailable = await StoreReview.isAvailableAsync();
-
-    if (isAvailable) {
-      await StoreReview.requestReview();
-    } else {
-      // Native review mevcut değilse mağaza linkine yönlendir
-      Alert.alert(
-        "Bizi Değerlendir ⭐",
-        "Tabu GO'yu beğendiysen mağazada yıldız verirsen çok mutlu oluruz!",
-        [
-          { text: "Daha Sonra", style: "cancel" },
-          {
-            text: "Değerlendir 🎉",
-            onPress: () => Linking.openURL(STORE_URL),
-          },
-        ]
-      );
-    }
-  } catch (e) {
-    console.log("[StoreReview] Hata:", e);
-  }
-};
-
-// Açılış sayacını artır ve gerekirse rating iste
-const handleLaunchCount = async () => {
-  try {
-    // Daha önce sorulduysa bir daha sorma
-    const alreadyAsked = await AsyncStorage.getItem(REVIEW_ASKED_KEY);
-    if (alreadyAsked === "1") return;
-
-    const raw = await AsyncStorage.getItem(LAUNCH_COUNT_KEY);
-    const count = raw ? parseInt(raw, 10) + 1 : 1;
-    await AsyncStorage.setItem(LAUNCH_COUNT_KEY, String(count));
-
-    console.log(`[StoreReview] Açılış sayısı: ${count}`);
-
-    if (count >= REVIEW_THRESHOLD) {
-      await AsyncStorage.setItem(REVIEW_ASKED_KEY, "1");
-      // Kısa gecikme: uygulama tam yüklendikten sonra göster
-      setTimeout(() => requestRating(), 1500);
-    }
-  } catch (e) {
-    console.log("[StoreReview] Sayaç hatası:", e);
-  }
-};
+const REVIEW_THRESHOLD = 3;
 
 export default function App() {
   const [appKey, setAppKey] = useState(0);
+  const [alertConfig, setAlertConfig] = useState(null); // YENİ EKLENDİ
+
+  // DEĞİŞTİRİLDİ (App fonksiyonu içine alındı)
+  const requestRating = async () => {
+    try {
+      const isAvailable = await StoreReview.isAvailableAsync();
+      if (isAvailable) {
+        await StoreReview.requestReview();
+      } else {
+        setAlertConfig({
+          title: "Bizi Değerlendir ⭐",
+          message: "Tabu GO'yu beğendiysen mağazada yıldız verirsen çok mutlu oluruz!",
+          buttons: [
+            { text: "Daha Sonra", style: "cancel" },
+            {
+              text: "Değerlendir 🎉",
+              onPress: () => Linking.openURL(STORE_URL),
+            },
+          ]
+        });
+      }
+    } catch (e) {
+      console.log("[StoreReview] Hata:", e);
+    }
+  };
+
+  // DEĞİŞTİRİLDİ (App fonksiyonu içine alındı)
+  const handleLaunchCount = async () => {
+    try {
+      const alreadyAsked = await AsyncStorage.getItem(REVIEW_ASKED_KEY);
+      if (alreadyAsked === "1") return;
+
+      const raw = await AsyncStorage.getItem(LAUNCH_COUNT_KEY);
+      const count = raw ? parseInt(raw, 10) + 1 : 1;
+      await AsyncStorage.setItem(LAUNCH_COUNT_KEY, String(count));
+
+      if (count >= REVIEW_THRESHOLD) {
+        await AsyncStorage.setItem(REVIEW_ASKED_KEY, "1");
+        setTimeout(() => requestRating(), 1500);
+      }
+    } catch (e) {
+      console.log("[StoreReview] Sayaç hatası:", e);
+    }
+  };
 
   const setupDailyNotifications = async () => {
     if (Platform.OS === 'android') {
@@ -156,8 +148,6 @@ export default function App() {
         minute: 0,
       },
     });
-
-    console.log('[Notifications] Günlük bildirimler kuruldu.');
   };
 
   useEffect(() => {
@@ -166,7 +156,6 @@ export default function App() {
     setupDailyNotifications();
     handleLaunchCount();
 
-    // ATT — iOS 14+ için zorunlu. Android'de bu modül bulunmaz, dynamic import şart.
     if (Platform.OS === "ios") {
       (async () => {
         try {
@@ -182,16 +171,13 @@ export default function App() {
     (async () => {
       try {
         await initIAP();
-
         let hasRemoveAds = false;
         try {
           hasRemoveAds = await restorePurchases();
         } catch (e) {
           hasRemoveAds = await getLocalRemoveAds();
         }
-      } catch (e) {
-        console.log("IAP Başlatma Hatası:", e);
-      }
+      } catch (e) { }
     })();
 
     return () => {
@@ -227,6 +213,14 @@ export default function App() {
               <Stack.Screen name="PrivacyPolicy" component={PrivacyPolicyScreen} />
               <Stack.Screen name="Store" component={StoreScreen} />
             </Stack.Navigator>
+
+            {/* YENİ EKLENDİ */}
+            <CustomAlert
+              visible={!!alertConfig}
+              {...alertConfig}
+              onClose={() => setAlertConfig(null)}
+            />
+
           </NavigationContainer>
         </SafeAreaProvider>
       </GestureHandlerRootView>

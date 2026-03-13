@@ -1,26 +1,26 @@
 import React, { useEffect, useReducer, useRef, useState, useCallback } from "react";
 import {
   View, Text, TouchableOpacity, ActivityIndicator, Modal, StatusBar,
-  InteractionManager, BackHandler, Alert
+  InteractionManager, BackHandler
 } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Ionicons } from "@expo/vector-icons";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useAudioPlayer } from "expo-audio";
-// REKLAM İMPORTLARI
-import { loadAd, subscribeAdEvent, showAd, AdEventType } from '../services/adService';
 
+import { loadAd, subscribeAdEvent, showAd, AdEventType } from '../services/adService';
 import { loadWordsOfflineFirst, clearWordsCache } from "../services/wordService";
 import { gameReducer, initialState } from "../reducers/gameReducer";
 import { saveScore } from "../services/leaderboardService";
 import { logRoundEnd } from "../services/analyticsService";
 import useGameStore from "../store/useGameStore";
 import { getProducts, buyProduct } from "../services/iapService";
+import CustomAlert from "../components/CustomAlert"; // YENİ EKLENDİ
 
 const LAST_FIRST_WORD_KEY = "LAST_FIRST_WORD_V1";
 const CARD_COLORS = ["bg-fuchsia-700", "bg-amber-400", "bg-sky-500", "bg-red-600"];
 const AD_COUNT_KEY = "AD_SHOWN_COUNT_V1";
-const UPSELL_EVERY = 3; // Her 3 reklamda bir upsell göster
+const UPSELL_EVERY = 3;
 
 const shuffleWords = (words) => {
   const arr = [...words];
@@ -57,8 +57,8 @@ export default function GameScreen({ navigation }) {
   const [fetchError, setFetchError] = useState(null);
   const [isProcessingTurn, setIsProcessingTurn] = useState(false);
   const [adLoaded, setAdLoaded] = useState(false);
+  const [alertConfig, setAlertConfig] = useState(null); // YENİ EKLENDİ
 
-  // Reklam kaldırma upsell popup state'leri
   const [showUpsell, setShowUpsell] = useState(false);
   const [upsellPrice, setUpsellPrice] = useState(null);
   const [isBuying, setIsBuying] = useState(false);
@@ -74,14 +74,8 @@ export default function GameScreen({ navigation }) {
   const intervalRef = useRef(null);
   const hasPlayedTickRef = useRef(false);
   const pendingUpsellRef = useRef(false);
-
-  // FIX: Satın alma sonrası START_TURN'ün güvenli tetiklenmesi için ref
-  // Race condition önlemi: buyProduct resolve olunca isPremium henüz true olmayabilir
-  // Bu yüzden satın alma sonrası START_TURN'ü doğrudan burada tetiklemiyoruz,
-  // isPremium değişince useEffect ile tetikliyoruz.
   const pendingStartAfterPurchaseRef = useRef(false);
 
-  // isPremium true olunca eğer satın alma sonrası bekleyen START_TURN varsa tetikle
   useEffect(() => {
     if (isPremium && pendingStartAfterPurchaseRef.current) {
       pendingStartAfterPurchaseRef.current = false;
@@ -90,7 +84,6 @@ export default function GameScreen({ navigation }) {
     }
   }, [isPremium]);
 
-  // IAP fiyatını çek
   useEffect(() => {
     getProducts().then((products) => {
       const p = products.find((x) => x.productId === "tabu_reklamsiz");
@@ -98,7 +91,6 @@ export default function GameScreen({ navigation }) {
     }).catch(() => { });
   }, []);
 
-  // Reklam sayacını artır, her 3'te bir upsell flag'ini işaretle
   const incrementAdCount = async () => {
     try {
       const raw = await AsyncStorage.getItem(AD_COUNT_KEY);
@@ -110,7 +102,6 @@ export default function GameScreen({ navigation }) {
     } catch (_) { }
   };
 
-  // REKLAM YÜKLEME VE DİNLEME EFFECT'İ
   useEffect(() => {
     const unsubscribeLoaded = subscribeAdEvent(AdEventType.LOADED, () => {
       setAdLoaded(true);
@@ -121,20 +112,15 @@ export default function GameScreen({ navigation }) {
       loadAd(isPremium);
       setIsProcessingTurn(false);
 
-      // Reklam kapandı — upsell gösterilecek mi?
       if (pendingUpsellRef.current) {
         pendingUpsellRef.current = false;
         setShowUpsell(true);
         return;
       }
-
-      // Upsell yok, direkt oyunu başlat
       hasPlayedTickRef.current = false;
       dispatch({ type: "START_TURN" });
     });
 
-    // Reklam gösterimi sırasında hata olursa isProcessingTurn takılı kalıyordu.
-    // Hata durumunda da oyun devam eder.
     const unsubscribeError = subscribeAdEvent(AdEventType.ERROR, () => {
       setAdLoaded(false);
       setIsProcessingTurn(false);
@@ -152,33 +138,24 @@ export default function GameScreen({ navigation }) {
     };
   }, [isPremium]);
 
-  // Upsell kapatılınca tur başlasın
   const handleUpsellClose = () => {
     setShowUpsell(false);
     hasPlayedTickRef.current = false;
     dispatch({ type: "START_TURN" });
   };
 
-  // FIX: Satın al butonuna basıldı — race condition düzeltildi
-  // Eski kod: buyProduct resolve olunca hemen START_TURN tetikliyordu.
-  // Sorun: iOS'ta requestPurchase hemen resolve olur ama isPremium henüz
-  // güncellenmemiş olabilir. Kullanıcı para ödedi ama reklam görebilirdi.
-  // Yeni davranış: pendingStartAfterPurchaseRef ile isPremium'un true olmasını bekle.
   const handleBuyRemoveAds = async () => {
     try {
       setIsBuying(true);
       await buyProduct("tabu_reklamsiz");
       setShowUpsell(false);
-      // isPremium store'da purchaseUpdatedListener tarafından güncellenecek.
-      // isPremium true olunca yukarıdaki useEffect START_TURN'ü tetikleyecek.
       pendingStartAfterPurchaseRef.current = true;
     } catch (e) {
-      // Satın alma başarısız veya iptal — popup'ı kapat ve oyunu devam ettir
       setShowUpsell(false);
       hasPlayedTickRef.current = false;
       dispatch({ type: "START_TURN" });
       if (e?.message) {
-        Alert.alert("Hata", e.message);
+        setAlertConfig({ title: "Hata", message: e.message }); // DEĞİŞTİRİLDİ
       }
     } finally {
       setIsBuying(false);
@@ -249,11 +226,12 @@ export default function GameScreen({ navigation }) {
   useEffect(() => {
     const onBackPress = () => {
       if (!state.isGameOver) {
-        Alert.alert(
-          "Oyundan Çık?",
-          "Oyun devam ediyor. Çıkarsanız ilerlemeniz kaybolacak.",
-          [
-            { text: "İptal", style: "cancel", onPress: () => { } },
+        // DEĞİŞTİRİLDİ
+        setAlertConfig({
+          title: "Oyundan Çık?",
+          message: "Oyun devam ediyor. Çıkarsanız ilerlemeniz kaybolacak.",
+          buttons: [
+            { text: "İptal", style: "cancel" },
             {
               text: "Çık",
               style: "destructive",
@@ -263,15 +241,12 @@ export default function GameScreen({ navigation }) {
                   intervalRef.current = null;
                 }
                 stopTickSlow();
-                if (navigation.canGoBack()) {
-                  navigation.popToTop();
-                } else {
-                  navigation.replace("Home");
-                }
-              },
-            },
+                if (navigation.canGoBack()) navigation.popToTop();
+                else navigation.replace("Home");
+              }
+            }
           ]
-        );
+        });
         return true;
       }
       return false;
@@ -336,8 +311,7 @@ export default function GameScreen({ navigation }) {
     InteractionManager.runAfterInteractions(async () => {
       if (cancelled) return;
       try {
-        const winnerScore =
-          state.teamAScore > state.teamBScore ? state.teamAScore : state.teamBScore;
+        const winnerScore = state.teamAScore > state.teamBScore ? state.teamAScore : state.teamBScore;
         saveScore("Player", winnerScore).catch(() => { });
         setFinalScores({ A: state.teamAScore, B: state.teamBScore });
       } catch (_) { }
@@ -368,15 +342,7 @@ export default function GameScreen({ navigation }) {
     if (isProcessingTurn) return;
     setIsProcessingTurn(true);
 
-    // FIX: Reklam gösterim koşulu düzeltildi
-    // Eski kod: activeTeam === "A" && roundNumber > 1 && roundNumber % 2 !== 0
-    // Bu koşul 4 roundluk oyunda sadece 1 kez reklam gösteriyordu.
-    // Yeni koşul: roundNumber > 1 yeterli — her tur geçişinde (1. tur hariç) reklam göster.
-    if (
-      !isPremium &&
-      adLoaded &&
-      state.roundNumber > 1
-    ) {
+    if (!isPremium && adLoaded && state.roundNumber > 1) {
       await incrementAdCount();
       showAd();
       return;
@@ -544,7 +510,6 @@ export default function GameScreen({ navigation }) {
           <Text className="text-white font-black uppercase mt-1">Tabu</Text>
         </TouchableOpacity>
 
-        {/* FIX: Pas butonu 0'da görsel olarak disabled gösteriliyor */}
         <TouchableOpacity
           className={`flex-1 h-24 rounded-3xl items-center justify-center shadow-lg active:scale-95 ${state.passCount <= 0 || !state.isActive
             ? "bg-slate-300 shadow-slate-100"
@@ -633,8 +598,6 @@ export default function GameScreen({ navigation }) {
       <Modal visible={showUpsell} transparent animationType="fade">
         <View className="flex-1 items-center justify-center bg-black/60 px-6">
           <View className="bg-white w-full rounded-[40px] overflow-hidden shadow-2xl">
-
-            {/* Üst renkli alan */}
             <View className="bg-fuchsia-700 pt-8 pb-6 items-center px-6">
               <View className="bg-white/20 p-4 rounded-full mb-3">
                 <Ionicons name="ban" size={40} color="white" />
@@ -646,10 +609,7 @@ export default function GameScreen({ navigation }) {
                 Tek seferlik ödeme, sonsuza kadar reklamsız!
               </Text>
             </View>
-
-            {/* Alt içerik */}
             <View className="px-6 pt-6 pb-8">
-              {/* Özellikler */}
               <View className="gap-3 mb-6">
                 {[
                   { icon: "checkmark-circle", text: "Hiç reklam yok" },
@@ -662,8 +622,6 @@ export default function GameScreen({ navigation }) {
                   </View>
                 ))}
               </View>
-
-              {/* Satın Al Butonu */}
               <TouchableOpacity
                 className="bg-fuchsia-700 w-full py-5 rounded-2xl items-center mb-3 shadow-lg shadow-fuchsia-200 active:scale-95"
                 onPress={handleBuyRemoveAds}
@@ -677,8 +635,6 @@ export default function GameScreen({ navigation }) {
                   </Text>
                 )}
               </TouchableOpacity>
-
-              {/* Kapat */}
               <TouchableOpacity
                 className="w-full py-4 items-center"
                 onPress={handleUpsellClose}
@@ -691,6 +647,12 @@ export default function GameScreen({ navigation }) {
         </View>
       </Modal>
 
+      {/* YENİ EKLENDİ */}
+      <CustomAlert
+        visible={!!alertConfig}
+        {...alertConfig}
+        onClose={() => setAlertConfig(null)}
+      />
     </SafeAreaView>
   );
 }
