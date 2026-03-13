@@ -19,7 +19,7 @@ const REMOVE_ADS_KEY = "REMOVE_ADS_V1";
 export const PRODUCT_IDS = [
     "tabu_tema_paketi_1",
     "tabu_ekstra_kelime_1",
-    "tabu_reklamsiz",
+    "tabu_reklamsiz_v1",
 ];
 
 let purchaseUpdateSub = null;
@@ -74,7 +74,7 @@ export async function initIAP() {
                 } else if (purchase.productId === "tabu_ekstra_kelime_1") {
                     useGameStore.getState().unlockExtraWords();
                     clearWordsCache();
-                } else if (purchase.productId === "tabu_reklamsiz") {
+                } else if (purchase.productId === "tabu_reklamsiz_v1") {
                     useGameStore.getState().setPremiumStatus(true);
                     await setLocalRemoveAds(true);
                 }
@@ -150,7 +150,7 @@ export async function restorePurchases() {
         let hasExtraWords = false;
 
         (purchases || []).forEach((p) => {
-            if (p.productId === "tabu_reklamsiz") {
+            if (p.productId === "tabu_reklamsiz_v1") {
                 hasRemoveAds = true;
             } else if (p.productId === "tabu_tema_paketi_1") {
                 hasThemeBundle = true;

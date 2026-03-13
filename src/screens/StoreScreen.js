@@ -78,7 +78,7 @@ export default function StoreScreen({ navigation }) {
                         </Text>
                         <TouchableOpacity
                             className="bg-white px-8 py-3 rounded-2xl active:scale-95 w-full items-center"
-                            onPress={() => handleBuy("tabu_reklamsiz")}
+                            onPress={() => handleBuy("tabu_reklamsiz_v1")}
                             disabled={loading}
                         >
                             <Text className="text-rose-600 font-black text-lg uppercase tracking-wider">REKLAMLARI KALDIR</Text>

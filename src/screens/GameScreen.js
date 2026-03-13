@@ -86,7 +86,7 @@ export default function GameScreen({ navigation }) {
 
   useEffect(() => {
     getProducts().then((products) => {
-      const p = products.find((x) => x.productId === "tabu_reklamsiz");
+      const p = products.find((x) => x.productId === "tabu_reklamsiz_v1");
       if (p) setUpsellPrice(p.localizedPrice ?? p.price ?? null);
     }).catch(() => { });
   }, []);
@@ -147,7 +147,7 @@ export default function GameScreen({ navigation }) {
   const handleBuyRemoveAds = async () => {
     try {
       setIsBuying(true);
-      await buyProduct("tabu_reklamsiz");
+      await buyProduct("tabu_reklamsiz_v1");
       setShowUpsell(false);
       pendingStartAfterPurchaseRef.current = true;
     } catch (e) {
