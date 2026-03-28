@@ -1,16 +1,3 @@
-// src/services/adService.js
-//
-// Merkezi reklam yönetimi — Singleton InterstitialAd instance.
-//
-// Problem: GameScreen ve ResultScreen'de ayrı ayrı
-//   InterstitialAd.createForAdRequest() çağrısı yapılıyordu.
-// Aynı adUnitId ile iki farklı instance oluşunca event listener'lar
-// çakışıyor, biri LOADED alırken diğeri CLOSED alıyordu.
-//
-// Çözüm: Instance burada tek sefer oluşturuluyor.
-// Her ekran bu modülden abone olup kendi callback'lerini kaydeder,
-// unmount'ta aboneliğini temizler — instance asla tekrar yaratılmaz.
-
 import { InterstitialAd, AdEventType, TestIds } from 'react-native-google-mobile-ads';
 
 // ─── Singleton Instance ───────────────────────────────────────────────────────

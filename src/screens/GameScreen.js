@@ -324,11 +324,15 @@ export default function GameScreen({ navigation }) {
     dispatch({ type: "PASS" });
   };
 
+  // REKLAM ALGORİTMASI DÜZELTMESİ BURADA UYGULANDI
   const startNextTurn = async () => {
     if (isProcessingTurn) return;
     setIsProcessingTurn(true);
 
-    if (!isPremium && adLoaded && state.roundNumber > 1) {
+    const isFullRoundFinished = state.activeTeam === "A";
+    const finishedRound = state.roundNumber - 1;
+
+    if (!isPremium && adLoaded && isFullRoundFinished && finishedRound % 2 === 0 && finishedRound > 0) {
       await incrementAdCount();
       showAd();
       return;
