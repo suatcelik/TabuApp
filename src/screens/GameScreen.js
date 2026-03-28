@@ -15,7 +15,7 @@ import { saveScore } from "../services/leaderboardService";
 import { logRoundEnd } from "../services/analyticsService";
 import useGameStore from "../store/useGameStore";
 import { getProducts, buyProduct } from "../services/iapService";
-import CustomAlert from "../components/CustomAlert"; // YENİ EKLENDİ
+import CustomAlert from "../components/CustomAlert";
 
 const LAST_FIRST_WORD_KEY = "LAST_FIRST_WORD_V1";
 const CARD_COLORS = ["bg-fuchsia-700", "bg-amber-400", "bg-sky-500", "bg-red-600"];
@@ -57,11 +57,14 @@ export default function GameScreen({ navigation }) {
   const [fetchError, setFetchError] = useState(null);
   const [isProcessingTurn, setIsProcessingTurn] = useState(false);
   const [adLoaded, setAdLoaded] = useState(false);
-  const [alertConfig, setAlertConfig] = useState(null); // YENİ EKLENDİ
+  const [alertConfig, setAlertConfig] = useState(null);
 
   const [showUpsell, setShowUpsell] = useState(false);
   const [upsellPrice, setUpsellPrice] = useState(null);
   const [isBuying, setIsBuying] = useState(false);
+
+  // YENİ EKLENDİ: Duraklatma (Pause) State'i
+  const [isPaused, setIsPaused] = useState(false);
 
   const settings = useGameStore((s) => s.settings);
   const setFinalScores = useGameStore((s) => s.setFinalScores);
@@ -155,7 +158,7 @@ export default function GameScreen({ navigation }) {
       hasPlayedTickRef.current = false;
       dispatch({ type: "START_TURN" });
       if (e?.message) {
-        setAlertConfig({ title: "Hata", message: e.message }); // DEĞİŞTİRİLDİ
+        setAlertConfig({ title: "Hata", message: e.message });
       }
     } finally {
       setIsBuying(false);
@@ -223,40 +226,23 @@ export default function GameScreen({ navigation }) {
     });
   }, [settings]);
 
+  // DEĞİŞTİRİLDİ: Geri tuşuna basıldığında oyunu duraklat (Pause menüsünü aç)
   useEffect(() => {
     const onBackPress = () => {
       if (!state.isGameOver) {
-        // DEĞİŞTİRİLDİ
-        setAlertConfig({
-          title: "Oyundan Çık?",
-          message: "Oyun devam ediyor. Çıkarsanız ilerlemeniz kaybolacak.",
-          buttons: [
-            { text: "İptal", style: "cancel" },
-            {
-              text: "Çık",
-              style: "destructive",
-              onPress: () => {
-                if (intervalRef.current) {
-                  clearInterval(intervalRef.current);
-                  intervalRef.current = null;
-                }
-                stopTickSlow();
-                if (navigation.canGoBack()) navigation.popToTop();
-                else navigation.replace("Home");
-              }
-            }
-          ]
-        });
+        setIsPaused(true);
+        stopTickSlow();
         return true;
       }
       return false;
     };
     const subscription = BackHandler.addEventListener("hardwareBackPress", onBackPress);
     return () => subscription.remove();
-  }, [state.isGameOver, navigation]);
+  }, [state.isGameOver]);
 
+  // DEĞİŞTİRİLDİ: isPaused state'ine göre zamanlayıcıyı durdur/başlat
   useEffect(() => {
-    if (!state.isActive) {
+    if (!state.isActive || isPaused) {
       if (intervalRef.current) clearInterval(intervalRef.current);
       intervalRef.current = null;
       return;
@@ -269,10 +255,10 @@ export default function GameScreen({ navigation }) {
       if (intervalRef.current) clearInterval(intervalRef.current);
       intervalRef.current = null;
     };
-  }, [state.isActive]);
+  }, [state.isActive, isPaused]);
 
   useEffect(() => {
-    if (!state.isActive || state.timeLeft <= 0) {
+    if (!state.isActive || state.timeLeft <= 0 || isPaused) {
       hasPlayedTickRef.current = false;
       return;
     }
@@ -280,7 +266,7 @@ export default function GameScreen({ navigation }) {
       hasPlayedTickRef.current = true;
       playTickSlow();
     }
-  }, [state.isActive, state.timeLeft]);
+  }, [state.isActive, state.timeLeft, isPaused]);
 
   useEffect(() => {
     if (state.timeLeft === 0 && state.isActive === false && !state.isGameOver) {
@@ -324,17 +310,17 @@ export default function GameScreen({ navigation }) {
   }, [state.isGameOver, state.teamAScore, state.teamBScore, navigation, setFinalScores]);
 
   const onCorrect = () => {
-    if (!state.isActive) return;
+    if (!state.isActive || isPaused) return;
     dispatch({ type: "SUCCESS" });
     playSound("SUCCESS");
   };
   const onTaboo = () => {
-    if (!state.isActive) return;
+    if (!state.isActive || isPaused) return;
     dispatch({ type: "TABOO" });
     playSound("ERROR");
   };
   const onPass = () => {
-    if (!state.isActive) return;
+    if (!state.isActive || isPaused) return;
     dispatch({ type: "PASS" });
   };
 
@@ -449,7 +435,16 @@ export default function GameScreen({ navigation }) {
 
       {renderThemeBackground()}
 
-      <View className={`flex-row justify-between items-center px-6 py-4 shadow-sm z-10 ${isDarkTheme ? "bg-slate-800/80" : "bg-white/80"}`}>
+      {/* DEĞİŞTİRİLDİ: Header alanına Pause Butonu Eklendi ve Boşluklar Ayarlandı */}
+      <View className={`flex-row justify-between items-center px-4 py-4 shadow-sm z-10 ${isDarkTheme ? "bg-slate-800/80" : "bg-white/80"}`}>
+
+        <TouchableOpacity
+          className="items-center justify-center mr-2 active:scale-90"
+          onPress={() => { setIsPaused(true); stopTickSlow(); }}
+        >
+          <Ionicons name="pause-circle" size={36} color={isDarkTheme ? "#94a3b8" : "#64748b"} />
+        </TouchableOpacity>
+
         <View className="items-center flex-1">
           <Text className={`${mutedTextColor} text-[10px] font-bold uppercase`} numberOfLines={1}>
             {activeTeamName}
@@ -459,8 +454,8 @@ export default function GameScreen({ navigation }) {
           </Text>
         </View>
 
-        <View className="items-center mx-4">
-          <View className="flex-row items-center bg-red-500 px-6 py-3 rounded-2xl shadow-lg shadow-indigo-200">
+        <View className="items-center mx-2">
+          <View className="flex-row items-center bg-red-500 px-5 py-3 rounded-2xl shadow-lg shadow-indigo-200">
             <Ionicons name="hourglass-outline" size={20} color="white" style={{ marginRight: 8 }} />
             <Text className="text-white font-black text-xl">
               {mm}:{ss}
@@ -504,22 +499,22 @@ export default function GameScreen({ navigation }) {
         <TouchableOpacity
           className="flex-1 bg-fuchsia-700 h-24 rounded-3xl items-center justify-center shadow-lg shadow-rose-200 active:scale-95"
           onPress={onTaboo}
-          disabled={!state.isActive}
+          disabled={!state.isActive || isPaused}
         >
           <Ionicons name="close-circle" size={32} color="white" />
           <Text className="text-white font-black uppercase mt-1">Tabu</Text>
         </TouchableOpacity>
 
         <TouchableOpacity
-          className={`flex-1 h-24 rounded-3xl items-center justify-center shadow-lg active:scale-95 ${state.passCount <= 0 || !state.isActive
+          className={`flex-1 h-24 rounded-3xl items-center justify-center shadow-lg active:scale-95 ${state.passCount <= 0 || !state.isActive || isPaused
             ? "bg-slate-300 shadow-slate-100"
             : "bg-amber-400 shadow-amber-200"
             }`}
           onPress={onPass}
-          disabled={!state.isActive || state.passCount <= 0}
+          disabled={!state.isActive || state.passCount <= 0 || isPaused}
         >
-          <Ionicons name="refresh-circle" size={32} color={state.passCount <= 0 || !state.isActive ? "#94a3b8" : "white"} />
-          <Text className={`font-black uppercase mt-1 ${state.passCount <= 0 || !state.isActive ? "text-slate-400" : "text-white"}`}>
+          <Ionicons name="refresh-circle" size={32} color={state.passCount <= 0 || !state.isActive || isPaused ? "#94a3b8" : "white"} />
+          <Text className={`font-black uppercase mt-1 ${state.passCount <= 0 || !state.isActive || isPaused ? "text-slate-400" : "text-white"}`}>
             Pas
           </Text>
         </TouchableOpacity>
@@ -527,7 +522,7 @@ export default function GameScreen({ navigation }) {
         <TouchableOpacity
           className="flex-1 bg-sky-500 h-24 rounded-3xl items-center justify-center shadow-lg shadow-emerald-200 active:scale-95"
           onPress={onCorrect}
-          disabled={!state.isActive}
+          disabled={!state.isActive || isPaused}
         >
           <Ionicons name="checkmark-circle" size={32} color="white" />
           <Text className="text-white font-black uppercase mt-1">Doğru</Text>
@@ -563,7 +558,7 @@ export default function GameScreen({ navigation }) {
       </Modal>
 
       {/* Tur Arası Modal */}
-      <Modal visible={!state.isActive && !state.isGameOver && state.timeLeft > 0 && !fetchError} transparent animationType="slide">
+      <Modal visible={!state.isActive && !state.isGameOver && state.timeLeft > 0 && !fetchError && !isPaused} transparent animationType="slide">
         <View className="flex-1 bg-indigo-900/98 items-center justify-center px-6">
           <View className="bg-white w-full p-8 rounded-[50px] items-center shadow-2xl">
             <View className="bg-amber-100 p-4 rounded-full mb-4">
@@ -595,7 +590,7 @@ export default function GameScreen({ navigation }) {
       </Modal>
 
       {/* Reklam Kaldırma Upsell Popup */}
-      <Modal visible={showUpsell} transparent animationType="fade">
+      <Modal visible={showUpsell && !isPaused} transparent animationType="fade">
         <View className="flex-1 items-center justify-center bg-black/60 px-6">
           <View className="bg-white w-full rounded-[40px] overflow-hidden shadow-2xl">
             <View className="bg-fuchsia-700 pt-8 pb-6 items-center px-6">
@@ -647,7 +642,42 @@ export default function GameScreen({ navigation }) {
         </View>
       </Modal>
 
-      {/* YENİ EKLENDİ */}
+      {/* YENİ EKLENDİ: Duraklatma (Pause) ve Çıkış Modalı */}
+      <Modal visible={isPaused} transparent animationType="fade">
+        <View className="flex-1 items-center justify-center bg-black/70 px-6 z-50">
+          <View className="bg-white w-full rounded-[40px] p-8 items-center shadow-2xl">
+            <Ionicons name="pause-circle" size={64} color="#f59e0b" className="mb-2" />
+            <Text className="text-2xl font-black text-slate-800 mb-6">Oyun Duraklatıldı</Text>
+
+            <TouchableOpacity
+              className="bg-sky-500 w-full py-4 rounded-2xl items-center mb-4 shadow-lg active:scale-95"
+              onPress={() => {
+                setIsPaused(false);
+                if (state.timeLeft <= 8) playTickSlow(); // Süre 8 saniyenin altındaysa sesi geri başlat
+              }}
+            >
+              <Text className="text-white font-black text-lg uppercase tracking-widest">Oyuna Dön</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              className="bg-red-500 w-full py-4 rounded-2xl items-center shadow-lg active:scale-95"
+              onPress={() => {
+                setIsPaused(false);
+                if (intervalRef.current) {
+                  clearInterval(intervalRef.current);
+                  intervalRef.current = null;
+                }
+                stopTickSlow();
+                if (navigation.canGoBack()) navigation.popToTop();
+                else navigation.replace("Home");
+              }}
+            >
+              <Text className="text-white font-black text-lg uppercase tracking-widest">Çıkış Yap</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
       <CustomAlert
         visible={!!alertConfig}
         {...alertConfig}

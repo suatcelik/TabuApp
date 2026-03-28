@@ -9,6 +9,7 @@ import {
     KeyboardAvoidingView,
     Platform,
     useWindowDimensions,
+    ScrollView // YENİ EKLENDİ
 } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
@@ -23,10 +24,7 @@ export default function HomeScreen({ navigation }) {
     const insets = useSafeAreaInsets();
     const { width, height } = useWindowDimensions();
 
-    // ✅ Küçük ekranda logo küçülsün (butonlara yer kalsın)
     const logoSize = Math.min(Math.round(width * 0.65), 300);
-
-    // ✅ Ekran kısaysa spacing’i azalt
     const isShort = height < 700;
 
     useEffect(() => {
@@ -44,7 +42,7 @@ export default function HomeScreen({ navigation }) {
 
             <KeyboardAvoidingView
                 style={{ flex: 1 }}
-                behavior={Platform.OS === "ios" ? "padding" : undefined}
+                behavior={Platform.OS === "ios" ? "padding" : "height"} // DEĞİŞTİRİLDİ
             >
                 {/* Arka plan baloncukları */}
                 <View
@@ -61,8 +59,13 @@ export default function HomeScreen({ navigation }) {
                     <View className="absolute -bottom-10 -left-10 w-56 h-56 rounded-full bg-amber-200/40" />
                 </View>
 
-                {/* Ana layout: ÜST (esneyen) + ALT (sabit) */}
-                <View style={{ flex: 1, paddingHorizontal: 32 }}>
+                {/* YENİ EKLENDİ: ScrollView ile Klavye Taşması Önlendi */}
+                <ScrollView
+                    contentContainerStyle={{ flexGrow: 1, paddingHorizontal: 32 }}
+                    keyboardShouldPersistTaps="handled"
+                    showsVerticalScrollIndicator={false}
+                    bounces={false}
+                >
                     {/* ÜST BLOK (esner) */}
                     <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
                         <Image
@@ -115,7 +118,7 @@ export default function HomeScreen({ navigation }) {
                     {/* ALT BLOK (sabit) */}
                     <View
                         style={{
-                            paddingBottom: Math.max(insets.bottom, 12) + 12, // ✅ nav bar üstünde kalsın
+                            paddingBottom: Math.max(insets.bottom, 12) + 12,
                             paddingTop: 12,
                         }}
                     >
@@ -153,7 +156,7 @@ export default function HomeScreen({ navigation }) {
                             v1.1.5
                         </Text>
                     </View>
-                </View>
+                </ScrollView>
             </KeyboardAvoidingView>
         </SafeAreaView>
     );
