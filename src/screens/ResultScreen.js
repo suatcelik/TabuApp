@@ -1,30 +1,34 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import {
   View,
   Text,
   StatusBar,
   Share,
+  useWindowDimensions,
 } from "react-native";
 import ConfettiCannon from "react-native-confetti-cannon";
 import { Ionicons } from "@expo/vector-icons";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { useAudioPlayer } from "expo-audio";
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
   withDelay,
+  withRepeat,
   withSequence,
   withSpring,
   withTiming,
-  withRepeat,
   Easing,
 } from "react-native-reanimated";
 
 import useGameStore from "../store/useGameStore";
 import { loadAd, subscribeAdEvent, showAd, AdEventType } from "../services/adService";
 import AppButton from "../components/AppButton";
-import FloatingBackground from "../components/FloatingBackground";
-import { hapticSuccess, hapticLight, hapticSelection } from "../utils/haptics";
+import GradientBackground from "../components/GradientBackground";
+import PulsingRings from "../components/PulsingRings";
+import OrbitingSparkles from "../components/OrbitingSparkles";
+import ScorePodium from "../components/ScorePodium";
+import { hapticSuccess, hapticLight, hapticSelection, hapticMedium } from "../utils/haptics";
 
 export default function ResultScreen({ navigation }) {
   const finalScores = useGameStore((s) => s.finalScores);
@@ -32,11 +36,16 @@ export default function ResultScreen({ navigation }) {
   const resetGame = useGameStore((s) => s.resetGame);
   const isPremium = useGameStore((s) => s.isPremium);
 
+  const insets = useSafeAreaInsets();
+  const { width } = useWindowDimensions();
+
   const [showConfetti, setShowConfetti] = useState(false);
+  const [secondaryBurst, setSecondaryBurst] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const [adLoaded, setAdLoaded] = useState(false);
 
   const winPlayer = useAudioPlayer(require("../../assets/success.mp3"));
+  const confettiRef = useRef(null);
 
   const scoreA = Number(finalScores?.A ?? 0);
   const scoreB = Number(finalScores?.B ?? 0);
@@ -49,46 +58,116 @@ export default function ResultScreen({ navigation }) {
         ? settings?.teamBName
         : "Berabere";
 
-  // Animations
+  const isDraw = winnerKey === "Draw";
+
+  // Shared values for hero sequence
+  const badgeScale = useSharedValue(0);
+  const badgeRotate = useSharedValue(-20);
+  const badgeGlow = useSharedValue(0);
+
   const trophyScale = useSharedValue(0);
-  const trophyRotate = useSharedValue(-20);
+  const trophyRotate = useSharedValue(-30);
   const trophyFloat = useSharedValue(0);
+
+  const eyebrowOpacity = useSharedValue(0);
+  const eyebrowTranslate = useSharedValue(-14);
+
+  const titleScale = useSharedValue(0.6);
   const titleOpacity = useSharedValue(0);
-  const titleTranslate = useSharedValue(-30);
-  const subOpacity = useSharedValue(0);
-  const subTranslate = useSharedValue(30);
-  const scoreOpacity = useSharedValue(0);
-  const scoreTranslate = useSharedValue(40);
+
+  const winnerNameOpacity = useSharedValue(0);
+  const winnerNameTranslate = useSharedValue(24);
+
+  const podiumOpacity = useSharedValue(0);
+  const podiumTranslate = useSharedValue(40);
+
   const actionsOpacity = useSharedValue(0);
-  const actionsTranslate = useSharedValue(30);
+  const actionsTranslate = useSharedValue(40);
 
   useEffect(() => {
-    trophyScale.value = withSpring(1, { damping: 10, stiffness: 160, mass: 0.9 });
-    trophyRotate.value = withSpring(0, { damping: 10, stiffness: 140 });
-    trophyFloat.value = withDelay(
-      700,
+    // Hero sequence
+    badgeScale.value = withSpring(1, { damping: 10, stiffness: 180, mass: 0.9 });
+    badgeRotate.value = withSpring(0, { damping: 10, stiffness: 160 });
+    badgeGlow.value = withDelay(
+      400,
       withRepeat(
         withSequence(
-          withTiming(-8, { duration: 1400, easing: Easing.inOut(Easing.quad) }),
-          withTiming(8, { duration: 1400, easing: Easing.inOut(Easing.quad) })
+          withTiming(1, { duration: 1200, easing: Easing.inOut(Easing.quad) }),
+          withTiming(0.4, { duration: 1200, easing: Easing.inOut(Easing.quad) })
         ),
         -1,
         true
       )
     );
 
-    titleOpacity.value = withDelay(200, withTiming(1, { duration: 400 }));
-    titleTranslate.value = withDelay(200, withSpring(0, { damping: 14, stiffness: 160 }));
+    trophyScale.value = withDelay(
+      150,
+      withSpring(1, { damping: 9, stiffness: 160, mass: 0.9 })
+    );
+    trophyRotate.value = withDelay(
+      150,
+      withSpring(0, { damping: 10, stiffness: 160 })
+    );
+    trophyFloat.value = withDelay(
+      1000,
+      withRepeat(
+        withSequence(
+          withTiming(-8, { duration: 1500, easing: Easing.inOut(Easing.quad) }),
+          withTiming(8, { duration: 1500, easing: Easing.inOut(Easing.quad) })
+        ),
+        -1,
+        true
+      )
+    );
 
-    subOpacity.value = withDelay(360, withTiming(1, { duration: 400 }));
-    subTranslate.value = withDelay(360, withSpring(0, { damping: 14, stiffness: 160 }));
+    eyebrowOpacity.value = withDelay(280, withTiming(1, { duration: 320 }));
+    eyebrowTranslate.value = withDelay(280, withSpring(0, { damping: 14, stiffness: 160 }));
 
-    scoreOpacity.value = withDelay(520, withTiming(1, { duration: 400 }));
-    scoreTranslate.value = withDelay(520, withSpring(0, { damping: 14, stiffness: 160 }));
+    titleOpacity.value = withDelay(380, withTiming(1, { duration: 420 }));
+    titleScale.value = withDelay(380, withSpring(1, { damping: 10, stiffness: 180 }));
 
-    actionsOpacity.value = withDelay(720, withTiming(1, { duration: 400 }));
-    actionsTranslate.value = withDelay(720, withSpring(0, { damping: 14, stiffness: 160 }));
+    winnerNameOpacity.value = withDelay(560, withTiming(1, { duration: 420 }));
+    winnerNameTranslate.value = withDelay(
+      560,
+      withSpring(0, { damping: 14, stiffness: 160 })
+    );
+
+    podiumOpacity.value = withDelay(780, withTiming(1, { duration: 420 }));
+    podiumTranslate.value = withDelay(780, withSpring(0, { damping: 14, stiffness: 160 }));
+
+    actionsOpacity.value = withDelay(1100, withTiming(1, { duration: 420 }));
+    actionsTranslate.value = withDelay(
+      1100,
+      withSpring(0, { damping: 14, stiffness: 160 })
+    );
   }, []);
+
+  // Haptic cadence matching the hero entrance (only once)
+  useEffect(() => {
+    const t1 = setTimeout(() => hapticMedium(), 150);
+    const t2 = setTimeout(() => hapticLight(), 560);
+    const t3 = setTimeout(() => {
+      if (!isDraw) hapticSuccess();
+    }, 1050);
+    return () => {
+      clearTimeout(t1);
+      clearTimeout(t2);
+      clearTimeout(t3);
+    };
+  }, [isDraw]);
+
+  // Animated styles
+  const badgeStyle = useAnimatedStyle(() => ({
+    transform: [
+      { scale: badgeScale.value },
+      { rotateZ: `${badgeRotate.value}deg` },
+    ],
+  }));
+
+  const badgeGlowStyle = useAnimatedStyle(() => ({
+    opacity: 0.4 + badgeGlow.value * 0.6,
+    transform: [{ scale: 1 + badgeGlow.value * 0.1 }],
+  }));
 
   const trophyStyle = useAnimatedStyle(() => ({
     transform: [
@@ -98,19 +177,24 @@ export default function ResultScreen({ navigation }) {
     ],
   }));
 
+  const eyebrowStyle = useAnimatedStyle(() => ({
+    opacity: eyebrowOpacity.value,
+    transform: [{ translateY: eyebrowTranslate.value }],
+  }));
+
   const titleStyle = useAnimatedStyle(() => ({
     opacity: titleOpacity.value,
-    transform: [{ translateY: titleTranslate.value }],
+    transform: [{ scale: titleScale.value }],
   }));
 
-  const subStyle = useAnimatedStyle(() => ({
-    opacity: subOpacity.value,
-    transform: [{ translateY: subTranslate.value }],
+  const winnerNameStyle = useAnimatedStyle(() => ({
+    opacity: winnerNameOpacity.value,
+    transform: [{ translateY: winnerNameTranslate.value }],
   }));
 
-  const scoreStyle = useAnimatedStyle(() => ({
-    opacity: scoreOpacity.value,
-    transform: [{ translateY: scoreTranslate.value }],
+  const podiumStyle = useAnimatedStyle(() => ({
+    opacity: podiumOpacity.value,
+    transform: [{ translateY: podiumTranslate.value }],
   }));
 
   const actionsStyle = useAnimatedStyle(() => ({
@@ -118,6 +202,7 @@ export default function ResultScreen({ navigation }) {
     transform: [{ translateY: actionsTranslate.value }],
   }));
 
+  // Confetti + ad listeners
   useEffect(() => {
     const unsubscribeLoaded = subscribeAdEvent(AdEventType.LOADED, () => {
       setAdLoaded(true);
@@ -139,15 +224,19 @@ export default function ResultScreen({ navigation }) {
 
     loadAd(isPremium);
 
-    if (winnerKey !== "Draw") {
-      const timer = setTimeout(() => {
+    if (!isDraw) {
+      const t1 = setTimeout(() => {
         setShowConfetti(true);
-        hapticSuccess();
         try { winPlayer.seekTo?.(0); winPlayer.play(); } catch (_) { }
-      }, 500);
+      }, 650);
+
+      const t2 = setTimeout(() => {
+        setSecondaryBurst(true);
+      }, 1800);
 
       return () => {
-        clearTimeout(timer);
+        clearTimeout(t1);
+        clearTimeout(t2);
         unsubscribeLoaded();
         unsubscribeClosed();
         unsubscribeError();
@@ -159,7 +248,7 @@ export default function ResultScreen({ navigation }) {
       unsubscribeClosed();
       unsubscribeError();
     };
-  }, [isPremium, winnerKey]);
+  }, [isPremium, isDraw]);
 
   const handleNewGame = async () => {
     if (isProcessing) return;
@@ -177,10 +266,9 @@ export default function ResultScreen({ navigation }) {
   const handleShare = async () => {
     hapticLight();
     try {
-      const msg =
-        winnerKey === "Draw"
-          ? `Tabu GO: ${settings?.teamAName} ${scoreA} - ${scoreB} ${settings?.teamBName} berabere bitti! 🎉`
-          : `Tabu GO: ${winnerName} ${Math.max(scoreA, scoreB)} puanla kazandı! 🏆`;
+      const msg = isDraw
+        ? `Tabu GO: ${settings?.teamAName} ${scoreA} - ${scoreB} ${settings?.teamBName} berabere bitti!`
+        : `Tabu GO: ${winnerName} ${Math.max(scoreA, scoreB)} puanla kazandı!`;
       await Share.share({ message: `${msg}\n\nSen de arkadaşlarınla oyna!` });
     } catch (_) { }
   };
@@ -191,117 +279,250 @@ export default function ResultScreen({ navigation }) {
     navigation.navigate("Home");
   };
 
-  const bgClass = winnerKey === "Draw" ? "bg-slate-800" : "bg-fuchsia-700";
+  const variant = isDraw ? "defeat" : "victory";
+  const glowColor = isDraw ? "#818cf8" : "#fde68a";
+  const badgeBg = isDraw ? "bg-slate-700" : "bg-amber-400";
+  const trophyIcon = isDraw ? "people-circle" : "trophy";
+  const resultTitle = isDraw ? "BERABERE" : "ZAFER!";
+  const eyebrowText = isDraw ? "İki takım da eşit!" : "Kazanan Takım";
 
   return (
-    <SafeAreaView className={`flex-1 ${bgClass}`}>
+    <View style={{ flex: 1, backgroundColor: "#0b0324" }}>
+      <GradientBackground variant={variant} />
+
       <StatusBar barStyle="light-content" />
 
-      <FloatingBackground variant={winnerKey === "Draw" ? "dark" : "light"} />
-
-      {showConfetti && (
-        <ConfettiCannon count={140} origin={{ x: -10, y: 0 }} fadeOut fallSpeed={2800} />
+      {showConfetti && !isDraw && (
+        <ConfettiCannon
+          ref={confettiRef}
+          count={160}
+          origin={{ x: -10, y: 0 }}
+          fadeOut
+          fallSpeed={2800}
+          explosionSpeed={420}
+        />
+      )}
+      {secondaryBurst && !isDraw && (
+        <ConfettiCannon
+          count={90}
+          origin={{ x: width + 10, y: 80 }}
+          fadeOut
+          fallSpeed={3200}
+          explosionSpeed={520}
+        />
       )}
 
-      <View className="flex-1 items-center justify-center px-6">
-        <Animated.View style={trophyStyle} className="bg-amber-400 p-7 rounded-full mb-6 shadow-2xl">
-          <Ionicons
-            name={winnerKey === "Draw" ? "people-circle" : "trophy"}
-            size={64}
-            color="white"
-          />
-        </Animated.View>
-
-        <Animated.View style={titleStyle}>
-          <Text
-            className="text-white text-5xl font-black mb-4 uppercase italic tracking-tighter text-center"
-            allowFontScaling={false}
-          >
-            Oyun Bitti!
-          </Text>
-        </Animated.View>
-
-        <Animated.View style={subStyle}>
-          <Text
-            className="text-white text-2xl font-black mb-10 uppercase tracking-widest text-center"
-            allowFontScaling={false}
-            numberOfLines={2}
-          >
-            {winnerKey === "Draw" ? "Dostluk Kazandı!" : `${winnerName} KAZANDI!`}
-          </Text>
-        </Animated.View>
-
-        <Animated.View
-          style={scoreStyle}
-          className="w-full bg-white/10 p-6 rounded-[36px] border border-white/20 shadow-xl mb-10"
+      <SafeAreaView style={{ flex: 1 }} edges={["top", "bottom"]}>
+        <View
+          style={{
+            flex: 1,
+            paddingHorizontal: 24,
+            paddingTop: 12,
+            paddingBottom: 12,
+            justifyContent: "space-between",
+          }}
         >
-          <View className="flex-row justify-around items-center">
-            <View className="items-center flex-1">
+          {/* HERO */}
+          <View style={{ alignItems: "center", paddingTop: 8 }}>
+            <Animated.View style={eyebrowStyle}>
               <Text
-                className="text-white/80 font-bold mb-2 uppercase text-sm text-center tracking-widest"
-                numberOfLines={1}
-              >
-                {settings?.teamAName}
-              </Text>
-              <Text
-                className={`text-6xl font-black ${winnerKey === "A" ? "text-amber-400" : "text-white"}`}
                 allowFontScaling={false}
+                style={{
+                  color: "#f0abfc",
+                  textAlign: "center",
+                  fontWeight: "900",
+                  fontSize: 12,
+                  letterSpacing: 3,
+                  textTransform: "uppercase",
+                  marginBottom: 6,
+                }}
               >
-                {scoreA}
+                Oyun Bitti
               </Text>
-            </View>
-            <View className="h-20 w-[1px] bg-white/20 mx-2" />
-            <View className="items-center flex-1">
+            </Animated.View>
+
+            <Animated.View style={titleStyle}>
               <Text
-                className="text-white/80 font-bold mb-2 uppercase text-sm text-center tracking-widest"
-                numberOfLines={1}
-              >
-                {settings?.teamBName}
-              </Text>
-              <Text
-                className={`text-6xl font-black ${winnerKey === "B" ? "text-amber-400" : "text-white"}`}
                 allowFontScaling={false}
+                style={{
+                  color: "white",
+                  textAlign: "center",
+                  fontWeight: "900",
+                  fontSize: 56,
+                  letterSpacing: -2,
+                  fontStyle: "italic",
+                  textShadowColor: "rgba(0,0,0,0.35)",
+                  textShadowOffset: { width: 0, height: 4 },
+                  textShadowRadius: 10,
+                }}
               >
-                {scoreB}
+                {resultTitle}
               </Text>
+            </Animated.View>
+
+            <View
+              style={{
+                width: 180,
+                height: 180,
+                marginTop: 18,
+                alignItems: "center",
+                justifyContent: "center",
+              }}
+            >
+              <PulsingRings size={170} color={glowColor} />
+
+              {!isDraw && (
+                <OrbitingSparkles
+                  radius={92}
+                  count={8}
+                  duration={18000}
+                  icons={["sparkles", "star", "sparkles", "star", "sparkles", "star", "sparkles", "star"]}
+                  color="#fde68a"
+                  iconSize={18}
+                />
+              )}
+
+              <Animated.View
+                style={[
+                  {
+                    position: "absolute",
+                    width: 170,
+                    height: 170,
+                    borderRadius: 85,
+                    backgroundColor: glowColor,
+                  },
+                  badgeGlowStyle,
+                ]}
+              />
+
+              <Animated.View
+                style={[
+                  badgeStyle,
+                  {
+                    shadowColor: glowColor,
+                    shadowOffset: { width: 0, height: 10 },
+                    shadowOpacity: 0.7,
+                    shadowRadius: 24,
+                    elevation: 12,
+                  },
+                ]}
+              >
+                <Animated.View
+                  style={[
+                    trophyStyle,
+                    {
+                      width: 130,
+                      height: 130,
+                      borderRadius: 65,
+                      alignItems: "center",
+                      justifyContent: "center",
+                    },
+                  ]}
+                  className={badgeBg}
+                >
+                  <Ionicons name={trophyIcon} size={74} color="white" />
+                </Animated.View>
+              </Animated.View>
             </View>
-          </View>
-        </Animated.View>
 
-        <Animated.View style={[actionsStyle, { width: "100%" }]}>
-          <AppButton
-            label="YENİ OYUN"
-            icon="play"
-            variant="accent"
-            size="xl"
-            italic
-            loading={isProcessing}
-            haptic="medium"
-            onPress={handleNewGame}
-            style={{ marginBottom: 12 }}
-          />
+            <Animated.View style={[eyebrowStyle, { marginTop: 18 }]}>
+              <Text
+                allowFontScaling={false}
+                style={{
+                  color: "rgba(255,255,255,0.7)",
+                  textAlign: "center",
+                  fontWeight: "800",
+                  fontSize: 11,
+                  letterSpacing: 3,
+                  textTransform: "uppercase",
+                }}
+              >
+                {eyebrowText}
+              </Text>
+            </Animated.View>
 
-          <View className="flex-row gap-3">
-            <AppButton
-              label="PAYLAŞ"
-              icon="share-social"
-              variant="info"
-              size="md"
-              onPress={handleShare}
-              style={{ flex: 1 }}
-            />
-            <AppButton
-              label="ANA MENÜ"
-              icon="home"
-              variant="outline"
-              size="md"
-              glow={false}
-              onPress={handleHome}
-              style={{ flex: 1 }}
-            />
+            <Animated.View style={winnerNameStyle}>
+              <Text
+                allowFontScaling={false}
+                numberOfLines={1}
+                style={{
+                  color: "#ffffff",
+                  textAlign: "center",
+                  fontWeight: "900",
+                  fontSize: 32,
+                  letterSpacing: -0.5,
+                  marginTop: 4,
+                  textShadowColor: "rgba(0,0,0,0.3)",
+                  textShadowOffset: { width: 0, height: 2 },
+                  textShadowRadius: 6,
+                }}
+              >
+                {isDraw ? "Dostluk Kazandı" : winnerName}
+              </Text>
+            </Animated.View>
           </View>
-        </Animated.View>
-      </View>
-    </SafeAreaView>
+
+          {/* PODIUM */}
+          <Animated.View
+            style={[
+              podiumStyle,
+              {
+                backgroundColor: "rgba(15, 23, 42, 0.35)",
+                borderRadius: 32,
+                borderWidth: 1,
+                borderColor: "rgba(255,255,255,0.12)",
+                paddingVertical: 20,
+                paddingHorizontal: 12,
+                marginVertical: 12,
+              },
+            ]}
+          >
+            <ScorePodium
+              teamAName={settings?.teamAName}
+              teamBName={settings?.teamBName}
+              scoreA={scoreA}
+              scoreB={scoreB}
+              winnerKey={winnerKey}
+              startDelay={780}
+            />
+          </Animated.View>
+
+          {/* ACTIONS */}
+          <Animated.View style={actionsStyle}>
+            <AppButton
+              label="YENİ OYUN"
+              icon="play"
+              variant="accent"
+              size="xl"
+              italic
+              loading={isProcessing}
+              haptic="medium"
+              onPress={handleNewGame}
+              style={{ marginBottom: 12 }}
+            />
+
+            <View style={{ flexDirection: "row", gap: 12 }}>
+              <AppButton
+                label="PAYLAŞ"
+                icon="share-social"
+                variant="info"
+                size="md"
+                onPress={handleShare}
+                style={{ flex: 1 }}
+              />
+              <AppButton
+                label="ANA MENÜ"
+                icon="home"
+                variant="ghost"
+                size="md"
+                glow={false}
+                onPress={handleHome}
+                style={{ flex: 1 }}
+              />
+            </View>
+          </Animated.View>
+        </View>
+      </SafeAreaView>
+    </View>
   );
 }
