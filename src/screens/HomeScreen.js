@@ -2,19 +2,30 @@ import React, { useEffect } from "react";
 import {
     View,
     Text,
-    TouchableOpacity,
     StatusBar,
     Image,
     TextInput,
     KeyboardAvoidingView,
     Platform,
     useWindowDimensions,
-    ScrollView // YENİ EKLENDİ
+    ScrollView,
 } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
-import { Ionicons } from "@expo/vector-icons";
+import Animated, {
+    useSharedValue,
+    useAnimatedStyle,
+    withSpring,
+    withTiming,
+    withDelay,
+    withRepeat,
+    withSequence,
+} from "react-native-reanimated";
 import useGameStore from "../store/useGameStore";
 import { initIAP } from "../services/iapService";
+import AppButton from "../components/AppButton";
+import FloatingBackground from "../components/FloatingBackground";
+import { hapticSelection } from "../utils/haptics";
+import { APP_VERSION } from "../theme/appMeta";
 
 export default function HomeScreen({ navigation }) {
     const settings = useGameStore((s) => s.settings);
@@ -24,12 +35,52 @@ export default function HomeScreen({ navigation }) {
     const insets = useSafeAreaInsets();
     const { width, height } = useWindowDimensions();
 
-    const logoSize = Math.min(Math.round(width * 0.65), 300);
+    const logoSize = Math.min(Math.round(width * 0.6), 260);
     const isShort = height < 700;
+
+    const logoScale = useSharedValue(0.6);
+    const logoOpacity = useSharedValue(0);
+    const logoFloat = useSharedValue(0);
+    const cardTranslate = useSharedValue(40);
+    const cardOpacity = useSharedValue(0);
+    const buttonsTranslate = useSharedValue(40);
+    const buttonsOpacity = useSharedValue(0);
 
     useEffect(() => {
         initIAP().catch((e) => console.log("Açılış IAP Başlatma Hatası:", e));
+
+        logoOpacity.value = withTiming(1, { duration: 420 });
+        logoScale.value = withSpring(1, { damping: 12, stiffness: 160, mass: 0.8 });
+        logoFloat.value = withRepeat(
+            withSequence(
+                withTiming(-6, { duration: 1800 }),
+                withTiming(6, { duration: 1800 })
+            ),
+            -1,
+            true
+        );
+
+        cardOpacity.value = withDelay(200, withTiming(1, { duration: 420 }));
+        cardTranslate.value = withDelay(200, withSpring(0, { damping: 14, stiffness: 160 }));
+
+        buttonsOpacity.value = withDelay(360, withTiming(1, { duration: 420 }));
+        buttonsTranslate.value = withDelay(360, withSpring(0, { damping: 14, stiffness: 160 }));
     }, []);
+
+    const logoStyle = useAnimatedStyle(() => ({
+        transform: [{ scale: logoScale.value }, { translateY: logoFloat.value }],
+        opacity: logoOpacity.value,
+    }));
+
+    const cardStyle = useAnimatedStyle(() => ({
+        transform: [{ translateY: cardTranslate.value }],
+        opacity: cardOpacity.value,
+    }));
+
+    const buttonsStyle = useAnimatedStyle(() => ({
+        transform: [{ translateY: buttonsTranslate.value }],
+        opacity: buttonsOpacity.value,
+    }));
 
     const handleStart = () => {
         resetGame();
@@ -42,44 +93,34 @@ export default function HomeScreen({ navigation }) {
 
             <KeyboardAvoidingView
                 style={{ flex: 1 }}
-                behavior={Platform.OS === "ios" ? "padding" : "height"} // DEĞİŞTİRİLDİ
+                behavior={Platform.OS === "ios" ? "padding" : "height"}
             >
-                {/* Arka plan baloncukları */}
-                <View
-                    style={{ position: "absolute", top: 0, left: 0, right: 0, bottom: 0, overflow: "hidden" }}
-                    pointerEvents="none"
-                >
-                    <View className="absolute -top-10 -left-10 w-80 h-80 rounded-full bg-fuchsia-200/60" />
-                    <View className="absolute -top-5 -left-5 w-56 h-56 rounded-full bg-fuchsia-300/40" />
-                    <View className="absolute -top-10 -right-10 w-72 h-72 rounded-full bg-rose-200/50" />
-                    <View className="absolute top-0 right-0 w-48 h-48 rounded-full bg-rose-300/30" />
-                    <View className="absolute top-1/3 -right-16 w-[350px] h-[350px] rounded-full bg-sky-200/50" />
-                    <View className="absolute top-1/2 -right-10 w-64 h-64 rounded-full bg-sky-300/30" />
-                    <View className="absolute -bottom-16 -left-16 w-80 h-80 rounded-full bg-amber-100/70" />
-                    <View className="absolute -bottom-10 -left-10 w-56 h-56 rounded-full bg-amber-200/40" />
-                </View>
+                <FloatingBackground variant="light" />
 
-                {/* YENİ EKLENDİ: ScrollView ile Klavye Taşması Önlendi */}
                 <ScrollView
-                    contentContainerStyle={{ flexGrow: 1, paddingHorizontal: 32 }}
+                    contentContainerStyle={{ flexGrow: 1, paddingHorizontal: 28 }}
                     keyboardShouldPersistTaps="handled"
                     showsVerticalScrollIndicator={false}
                     bounces={false}
                 >
-                    {/* ÜST BLOK (esner) */}
                     <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
-                        <Image
-                            source={require("../../assets/logo.png")}
-                            style={{ width: logoSize, height: logoSize, marginTop: isShort ? 0 : 8 }}
-                            resizeMode="contain"
-                            fadeDuration={0}
-                        />
+                        <Animated.View style={logoStyle}>
+                            <Image
+                                source={require("../../assets/logo.png")}
+                                style={{ width: logoSize, height: logoSize, marginTop: isShort ? 0 : 8 }}
+                                resizeMode="contain"
+                                fadeDuration={0}
+                            />
+                        </Animated.View>
 
-                        <View
-                            className="w-full bg-white p-6 rounded-[35px] border border-slate-800 shadow-xl shadow-slate-800"
-                            style={{ marginTop: isShort ? 10 : 16 }}
+                        <Animated.View
+                            style={[
+                                cardStyle,
+                                { marginTop: isShort ? 8 : 16, width: "100%" },
+                            ]}
+                            className="bg-white p-5 rounded-[28px] border border-slate-800 shadow-xl"
                         >
-                            <Text className="text-slate-950 text-center font-bold uppercase tracking-widest text-[12px] mb-4">
+                            <Text className="text-slate-950 text-center font-bold uppercase tracking-widest text-[11px] mb-4">
                                 Takım İsimlerini Düzenle
                             </Text>
 
@@ -90,9 +131,10 @@ export default function HomeScreen({ navigation }) {
                                         onChangeText={(t) => updateSettings({ teamAName: t })}
                                         placeholder="Takım A"
                                         placeholderTextColor="#94a3b8"
-                                        className="bg-gray-50/60 border border-slate-800 rounded-2xl px-3 py-3 text-slate-800 font-extrabold text-center"
+                                        className="bg-slate-50 border border-slate-800 rounded-2xl px-3 py-3 text-slate-800 font-extrabold text-center"
                                         maxLength={15}
                                         returnKeyType="done"
+                                        accessibilityLabel="Takım A adı"
                                     />
                                 </View>
 
@@ -106,56 +148,67 @@ export default function HomeScreen({ navigation }) {
                                         onChangeText={(t) => updateSettings({ teamBName: t })}
                                         placeholder="Takım B"
                                         placeholderTextColor="#94a3b8"
-                                        className="bg-gray-50/60 border border-slate-800 rounded-2xl px-3 py-3 text-slate-800 font-extrabold text-center"
+                                        className="bg-slate-50 border border-slate-800 rounded-2xl px-3 py-3 text-slate-800 font-extrabold text-center"
                                         maxLength={15}
                                         returnKeyType="done"
+                                        accessibilityLabel="Takım B adı"
                                     />
                                 </View>
                             </View>
-                        </View>
+                        </Animated.View>
                     </View>
 
-                    {/* ALT BLOK (sabit) */}
-                    <View
-                        style={{
-                            paddingBottom: Math.max(insets.bottom, 12) + 12,
-                            paddingTop: 12,
-                        }}
+                    <Animated.View
+                        style={[
+                            buttonsStyle,
+                            {
+                                paddingBottom: Math.max(insets.bottom, 12) + 12,
+                                paddingTop: 12,
+                            },
+                        ]}
                     >
-                        <TouchableOpacity
-                            className="bg-fuchsia-700 py-6 rounded-3xl shadow-2xl shadow-fuchsia-300 flex-row justify-center items-center active:scale-95 mb-4"
+                        <AppButton
+                            label="BAŞLA!"
+                            icon="play"
+                            variant="primary"
+                            size="xl"
+                            italic
+                            haptic="medium"
                             onPress={handleStart}
-                        >
-                            <Ionicons name="play" size={24} color="white" />
-                            <Text className="text-white text-2xl font-black uppercase italic tracking-widest ml-3">
-                                BAŞLA!
-                            </Text>
-                        </TouchableOpacity>
+                            style={{ marginBottom: 12 }}
+                            accessibilityLabel="Oyunu başlat"
+                        />
 
-                        <TouchableOpacity
-                            className="bg-amber-400 py-5 rounded-3xl border border-amber-500 flex-row justify-center items-center active:scale-95 mb-4 shadow-lg shadow-amber-200"
-                            onPress={() => navigation.navigate("Store")}
-                        >
-                            <Ionicons name="cart" size={24} color="white" />
-                            <Text className="text-white text-xl font-black uppercase tracking-widest ml-3">
-                                MAĞAZA & TEMALAR
-                            </Text>
-                        </TouchableOpacity>
+                        <AppButton
+                            label="MAĞAZA & TEMALAR"
+                            icon="cart"
+                            variant="accent"
+                            size="lg"
+                            onPress={() => {
+                                hapticSelection();
+                                navigation.navigate("Store");
+                            }}
+                            style={{ marginBottom: 12 }}
+                            accessibilityLabel="Mağaza ve temalar"
+                        />
 
-                        <TouchableOpacity
-                            className="bg-white/80 py-5 rounded-3xl border border-slate-800 flex-row justify-center items-center active:bg-slate-100"
-                            onPress={() => navigation.navigate("Settings")}
-                        >
-                            <Ionicons name="settings-sharp" size={20} color="#64748b" />
-                            <Text className="text-slate-600 text-lg font-bold uppercase tracking-widest ml-3">
-                                AYARLAR
-                            </Text>
-                        </TouchableOpacity>
+                        <AppButton
+                            label="AYARLAR"
+                            icon="settings-sharp"
+                            variant="outline"
+                            size="lg"
+                            glow={false}
+                            onPress={() => {
+                                hapticSelection();
+                                navigation.navigate("Settings");
+                            }}
+                            accessibilityLabel="Ayarlar"
+                        />
 
                         <Text className="text-center text-slate-400 text-[10px] mt-4 font-bold uppercase tracking-widest">
-                            v1.1.5
+                            v{APP_VERSION}
                         </Text>
-                    </View>
+                    </Animated.View>
                 </ScrollView>
             </KeyboardAvoidingView>
         </SafeAreaView>
