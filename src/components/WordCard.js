@@ -1,5 +1,6 @@
 import React, { forwardRef, useImperativeHandle, useEffect } from "react";
 import { View, Text, useWindowDimensions } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
 import Animated, {
     useSharedValue,
     useAnimatedStyle,
@@ -7,18 +8,38 @@ import Animated, {
     withSequence,
     withSpring,
     withDelay,
+    runOnJS,
     Easing,
 } from "react-native-reanimated";
+import { Gesture, GestureDetector } from "react-native-gesture-handler";
+
+const SWIPE_THRESHOLD = 90;
 
 /**
  * Animated word card. Parent controls content but can trigger visual feedback:
- *   ref.current.success()
- *   ref.current.taboo()
- *   ref.current.pass()
+ *   ref.current.success(), ref.current.taboo(), ref.current.pass()
  * A fresh slide-in animation is triggered automatically when `currentIndex` changes.
+ *
+ * Swipe gestures (optional, enabled by default):
+ *   right → onSwipeCorrect
+ *   left  → onSwipeTaboo
+ *   down  → onSwipePass
  */
 const WordCard = forwardRef(function WordCard(
-    { word, forbiddenWords, headerBg = "bg-fuchsia-700", headerTextColor = "text-white", isDark = false, currentIndex = 0 },
+    {
+        word,
+        forbiddenWords,
+        headerBg = "bg-fuchsia-700",
+        headerTextColor = "text-white",
+        isDark = false,
+        currentIndex = 0,
+        difficulty,
+        difficultyLabel,
+        swipeEnabled = true,
+        onSwipeCorrect,
+        onSwipeTaboo,
+        onSwipePass,
+    },
     ref
 ) {
     const { width } = useWindowDimensions();
@@ -28,7 +49,7 @@ const WordCard = forwardRef(function WordCard(
     const rotate = useSharedValue(0);
     const scale = useSharedValue(1);
     const flashOpacity = useSharedValue(0);
-    const flashColor = useSharedValue(0); // 0 = success/green, 1 = taboo/red
+    const flashColor = useSharedValue(0);
 
     useEffect(() => {
         translateX.value = -width * 0.3;
@@ -108,6 +129,35 @@ const WordCard = forwardRef(function WordCard(
         pass: runPass,
     }));
 
+    // Pan gesture → cards track the finger, snap back or fire an action.
+    const panGesture = Gesture.Pan()
+        .enabled(!!swipeEnabled)
+        .activeOffsetX([-15, 15])
+        .activeOffsetY([-15, 15])
+        .onUpdate((e) => {
+            translateX.value = e.translationX;
+            translateY.value = Math.max(0, e.translationY * 0.6);
+            rotate.value = (e.translationX / width) * 6;
+        })
+        .onEnd((e) => {
+            const { translationX, translationY } = e;
+            const goRight = translationX > SWIPE_THRESHOLD;
+            const goLeft = translationX < -SWIPE_THRESHOLD;
+            const goDown = translationY > SWIPE_THRESHOLD && Math.abs(translationX) < SWIPE_THRESHOLD;
+
+            if (goRight && onSwipeCorrect) {
+                runOnJS(onSwipeCorrect)();
+            } else if (goLeft && onSwipeTaboo) {
+                runOnJS(onSwipeTaboo)();
+            } else if (goDown && onSwipePass) {
+                runOnJS(onSwipePass)();
+            } else {
+                translateX.value = withSpring(0, { damping: 14, stiffness: 200 });
+                translateY.value = withSpring(0, { damping: 14, stiffness: 200 });
+                rotate.value = withSpring(0, { damping: 14, stiffness: 200 });
+            }
+        });
+
     const cardStyle = useAnimatedStyle(() => ({
         transform: [
             { translateX: translateX.value },
@@ -127,12 +177,33 @@ const WordCard = forwardRef(function WordCard(
     const dividerColor = isDark ? "bg-slate-700" : "bg-slate-100";
     const cardBg = isDark ? "bg-slate-800 border-slate-700" : "bg-white border-slate-100";
 
-    return (
+    const difficultyPillColor = {
+        easy: "bg-emerald-500/90",
+        medium: "bg-amber-500/90",
+        hard: "bg-rose-500/90",
+    }[difficulty] || "bg-white/25";
+
+    const difficultyIcon = {
+        easy: "leaf",
+        medium: "flame",
+        hard: "skull",
+    }[difficulty] || "pricetag";
+
+    const content = (
         <Animated.View
             style={[cardStyle, { overflow: "hidden", borderRadius: 36 }]}
             className={`${cardBg} border shadow-2xl`}
         >
             <View className={`${headerBg} py-10 items-center`}>
+                {difficultyLabel ? (
+                    <View className={`${difficultyPillColor} absolute top-4 right-4 flex-row items-center px-2.5 py-1 rounded-full`}>
+                        <Ionicons name={difficultyIcon} size={12} color="white" style={{ marginRight: 4 }} />
+                        <Text className="text-white text-[10px] font-black uppercase tracking-widest" allowFontScaling={false}>
+                            {difficultyLabel}
+                        </Text>
+                    </View>
+                ) : null}
+
                 <Text
                     className={`${headerTextColor} text-4xl font-black uppercase tracking-tighter text-center px-4`}
                     allowFontScaling={false}
@@ -174,6 +245,9 @@ const WordCard = forwardRef(function WordCard(
             />
         </Animated.View>
     );
+
+    if (!swipeEnabled) return content;
+    return <GestureDetector gesture={panGesture}>{content}</GestureDetector>;
 });
 
 export default WordCard;

@@ -87,6 +87,7 @@ export default function AppButton({
     glow = true,
     testID,
     accessibilityLabel,
+    badge,
 }) {
     const scale = useSharedValue(1);
     const opacity = useSharedValue(1);
@@ -137,6 +138,33 @@ export default function AppButton({
             style={[animatedStyle, glowStyle, fullWidth ? { width: "100%" } : null, style]}
             className={`${s.radius} ${v.bg} ${disabledExtra} ${fullWidth ? "" : "self-start"}`}
         >
+            {badge != null && badge !== false ? (
+                <View
+                    pointerEvents="none"
+                    style={{
+                        position: "absolute",
+                        top: -8,
+                        right: -8,
+                        minWidth: 26,
+                        height: 26,
+                        paddingHorizontal: 6,
+                        borderRadius: 13,
+                        backgroundColor: "#0f172a",
+                        borderWidth: 2,
+                        borderColor: "#ffffff",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        zIndex: 10,
+                    }}
+                >
+                    <Text
+                        allowFontScaling={false}
+                        style={{ color: "white", fontWeight: "900", fontSize: 11 }}
+                    >
+                        {badge}
+                    </Text>
+                </View>
+            ) : null}
             <Pressable
                 testID={testID}
                 accessibilityRole="button"
