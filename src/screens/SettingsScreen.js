@@ -2,22 +2,101 @@ import React from "react";
 import {
     View,
     Text,
-    TouchableOpacity,
+    Pressable,
     StatusBar,
     TextInput,
     KeyboardAvoidingView,
     Platform,
     ScrollView,
+    Switch,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
+import Animated, {
+    useSharedValue,
+    useAnimatedStyle,
+    withSpring,
+    withTiming,
+    withDelay,
+} from "react-native-reanimated";
 import useGameStore from "../store/useGameStore";
+import AppButton from "../components/AppButton";
+import { hapticSelection, hapticLight } from "../utils/haptics";
+
+function OptionPill({ active, label, onPress, activeClass = "bg-fuchsia-700" }) {
+    const scale = useSharedValue(1);
+
+    const style = useAnimatedStyle(() => ({
+        transform: [{ scale: scale.value }],
+    }));
+
+    return (
+        <Animated.View
+            style={[style, { flex: 1 }]}
+            className={`rounded-2xl ${active ? `${activeClass} border-transparent` : "bg-white border-slate-200"} border-2`}
+        >
+            <Pressable
+                accessibilityRole="button"
+                accessibilityState={{ selected: !!active }}
+                hitSlop={6}
+                onPressIn={() => {
+                    scale.value = withSpring(0.94, { damping: 15, stiffness: 260 });
+                }}
+                onPressOut={() => {
+                    scale.value = withSpring(1, { damping: 12, stiffness: 200 });
+                }}
+                onPress={() => {
+                    hapticSelection();
+                    onPress?.();
+                }}
+                className="py-4 items-center justify-center"
+            >
+                <Text className={`text-lg font-black ${active ? "text-white" : "text-slate-600"}`}>
+                    {label}
+                </Text>
+            </Pressable>
+        </Animated.View>
+    );
+}
+
+function SelectionGroup({ label, options, currentVal, field, activeClass, updateField, delay = 0 }) {
+    const translateY = useSharedValue(20);
+    const opacity = useSharedValue(0);
+
+    React.useEffect(() => {
+        translateY.value = withDelay(delay, withSpring(0, { damping: 14, stiffness: 160 }));
+        opacity.value = withDelay(delay, withTiming(1, { duration: 400 }));
+    }, []);
+
+    const style = useAnimatedStyle(() => ({
+        opacity: opacity.value,
+        transform: [{ translateY: translateY.value }],
+    }));
+
+    return (
+        <Animated.View style={style} className="mb-7">
+            <Text className="text-slate-500 font-black uppercase tracking-widest text-xs ml-2 mb-3">
+                {label}
+            </Text>
+            <View className="flex-row gap-3">
+                {options.map((opt) => (
+                    <OptionPill
+                        key={opt}
+                        label={opt}
+                        active={currentVal === opt}
+                        activeClass={activeClass}
+                        onPress={() => updateField(field, opt)}
+                    />
+                ))}
+            </View>
+        </Animated.View>
+    );
+}
 
 export default function SettingsScreen({ navigation }) {
     const settings = useGameStore((s) => s.settings);
     const updateSettings = useGameStore((s) => s.updateSettings);
 
-    // Seçenek Grupları
     const durationOptions = [60, 90, 120];
     const maxPassOptions = [3, 4, 5];
     const roundsOptions = [4, 6, 8, 10];
@@ -26,41 +105,24 @@ export default function SettingsScreen({ navigation }) {
         updateSettings({ [field]: value });
     };
 
-    // Seçenek Butonu Bileşeni
-    const SelectionGroup = ({ label, options, currentVal, field, activeColor }) => (
-        <View className="gap-3 mb-8">
-            <Text className="text-slate-500 font-bold uppercase tracking-widest text-xs ml-4">
-                {label}
-            </Text>
-            <View className="flex-row gap-3">
-                {options.map((opt) => (
-                    <TouchableOpacity
-                        key={opt}
-                        onPress={() => updateField(field, opt)}
-                        className={`flex-1 py-4 rounded-2xl border-2 items-center justify-center shadow-sm 
-                            ${currentVal === opt
-                                ? `${activeColor} border-slate-800`
-                                : "bg-white border-slate-200"}`}
-                    >
-                        <Text className={`text-lg font-black ${currentVal === opt ? "text-white" : "text-slate-600"}`}>
-                            {opt}
-                        </Text>
-                    </TouchableOpacity>
-                ))}
-            </View>
-        </View>
-    );
-
     return (
         <SafeAreaView className="flex-1 bg-slate-50">
             <StatusBar barStyle="dark-content" />
 
-            {/* Header */}
-            <View className="flex-row items-center px-6 py-4 bg-white border-b border-slate-100 shadow-sm">
-                <TouchableOpacity onPress={() => navigation.goBack()} className="p-2 active:opacity-50">
-                    <Ionicons name="arrow-back" size={28} color="#4f46e5" />
-                </TouchableOpacity>
-                <Text className="ml-4 text-2xl font-black text-slate-800 uppercase tracking-tighter">
+            <View className="flex-row items-center px-4 py-3 bg-white border-b border-slate-100 shadow-sm">
+                <Pressable
+                    onPress={() => {
+                        hapticLight();
+                        navigation.goBack();
+                    }}
+                    hitSlop={12}
+                    accessibilityLabel="Geri"
+                    accessibilityRole="button"
+                    className="p-2 active:opacity-60"
+                >
+                    <Ionicons name="arrow-back" size={26} color="#0f172a" />
+                </Pressable>
+                <Text className="ml-2 text-2xl font-black text-slate-800 uppercase tracking-tighter">
                     Ayarlar
                 </Text>
             </View>
@@ -69,49 +131,54 @@ export default function SettingsScreen({ navigation }) {
                 behavior={Platform.OS === "ios" ? "padding" : undefined}
                 style={{ flex: 1 }}
             >
-                <ScrollView className="flex-1" contentContainerStyle={{ padding: 24, paddingBottom: 40 }}>
-
-                    {/* Takım İsimleri Kartı */}
-                    <View className="bg-blue-800 p-6 rounded-[35px] border-2 border-slate-800 shadow-lg mb-8">
+                <ScrollView
+                    className="flex-1"
+                    contentContainerStyle={{ padding: 20, paddingBottom: 40 }}
+                    keyboardShouldPersistTaps="handled"
+                >
+                    <View className="bg-blue-800 p-5 rounded-[28px] border-2 border-slate-900 shadow-lg mb-8">
                         <View className="flex-row items-center mb-4">
                             <Ionicons name="people" size={20} color="white" />
                             <Text className="text-white font-black ml-2 uppercase tracking-widest">Takımlar</Text>
                         </View>
 
-                        <View className="space-y-4">
-                            <View>
-                                <Text className="text-blue-200 text-xs font-bold mb-2 ml-1">1. TAKIM</Text>
-                                <TextInput
-                                    value={settings?.teamAName ?? "Takım A"}
-                                    onChangeText={(t) => updateField("teamAName", t)}
-                                    placeholder="Takım A"
-                                    placeholderTextColor="#94a3b8"
-                                    className="bg-white border-2 border-slate-800 rounded-2xl px-4 py-3 text-slate-800 font-bold"
-                                    maxLength={15}
-                                />
-                            </View>
+                        <View>
+                            <Text className="text-blue-200 text-xs font-black mb-2 ml-1 tracking-widest">1. TAKIM</Text>
+                            <TextInput
+                                value={settings?.teamAName ?? "Takım A"}
+                                onChangeText={(t) => updateField("teamAName", t)}
+                                placeholder="Takım A"
+                                placeholderTextColor="#94a3b8"
+                                className="bg-white border-2 border-slate-900 rounded-2xl px-4 py-3 text-slate-800 font-bold"
+                                maxLength={15}
+                                returnKeyType="next"
+                                accessibilityLabel="Takım A adı"
+                            />
+                        </View>
 
-                            <View className="mt-4">
-                                <Text className="text-blue-200 text-xs font-bold mb-2 ml-1">2. TAKIM</Text>
-                                <TextInput
-                                    value={settings?.teamBName ?? "Takım B"}
-                                    onChangeText={(t) => updateField("teamBName", t)}
-                                    placeholder="Takım B"
-                                    placeholderTextColor="#94a3b8"
-                                    className="bg-white border-2 border-slate-800 rounded-2xl px-4 py-3 text-slate-800 font-bold"
-                                    maxLength={15}
-                                />
-                            </View>
+                        <View className="mt-4">
+                            <Text className="text-blue-200 text-xs font-black mb-2 ml-1 tracking-widest">2. TAKIM</Text>
+                            <TextInput
+                                value={settings?.teamBName ?? "Takım B"}
+                                onChangeText={(t) => updateField("teamBName", t)}
+                                placeholder="Takım B"
+                                placeholderTextColor="#94a3b8"
+                                className="bg-white border-2 border-slate-900 rounded-2xl px-4 py-3 text-slate-800 font-bold"
+                                maxLength={15}
+                                returnKeyType="done"
+                                accessibilityLabel="Takım B adı"
+                            />
                         </View>
                     </View>
 
-                    {/* Seçmeli Ayarlar */}
                     <SelectionGroup
                         label="Tur Süresi (Saniye)"
                         options={durationOptions}
                         currentVal={settings?.duration}
                         field="duration"
-                        activeColor="bg-orange-500"
+                        activeClass="bg-orange-500"
+                        updateField={updateField}
+                        delay={0}
                     />
 
                     <SelectionGroup
@@ -119,7 +186,9 @@ export default function SettingsScreen({ navigation }) {
                         options={roundsOptions}
                         currentVal={settings?.roundsPerTeam}
                         field="roundsPerTeam"
-                        activeColor="bg-emerald-500"
+                        activeClass="bg-emerald-500"
+                        updateField={updateField}
+                        delay={80}
                     />
 
                     <SelectionGroup
@@ -127,38 +196,59 @@ export default function SettingsScreen({ navigation }) {
                         options={maxPassOptions}
                         currentVal={settings?.maxPass}
                         field="maxPass"
-                        activeColor="bg-fuchsia-600"
+                        activeClass="bg-fuchsia-700"
+                        updateField={updateField}
+                        delay={160}
                     />
 
-                    {/* Yasal Bilgiler */}
-                    <View className="bg-white p-5 rounded-3xl border border-slate-200 shadow-sm mt-4">
-                        <TouchableOpacity
-                            onPress={() => navigation.navigate("PrivacyPolicy")}
-                            className="flex-row items-center justify-between"
-                        >
+                    <View className="bg-white rounded-3xl border border-slate-100 shadow-sm p-4 mb-4">
+                        <View className="flex-row items-center justify-between">
                             <View className="flex-row items-center">
-                                <View className="bg-indigo-100 p-2 rounded-xl">
-                                    <Ionicons name="shield-checkmark" size={20} color="#4f46e5" />
+                                <View className="bg-indigo-100 p-2 rounded-xl mr-3">
+                                    <Ionicons name="phone-portrait" size={20} color="#4f46e5" />
                                 </View>
-                                <Text className="ml-3 text-slate-700 font-bold">Gizlilik Politikası</Text>
+                                <Text className="text-slate-700 font-black text-base">Titreşim</Text>
                             </View>
-                            <Ionicons name="chevron-forward" size={20} color="#cbd5e1" />
-                        </TouchableOpacity>
+                            <Switch
+                                value={settings?.vibration !== false}
+                                onValueChange={(v) => {
+                                    hapticLight();
+                                    updateField("vibration", v);
+                                }}
+                                trackColor={{ false: "#cbd5e1", true: "#a21caf" }}
+                                thumbColor="#ffffff"
+                            />
+                        </View>
                     </View>
 
+                    <Pressable
+                        onPress={() => {
+                            hapticLight();
+                            navigation.navigate("PrivacyPolicy");
+                        }}
+                        android_ripple={{ color: "#00000010" }}
+                        accessibilityRole="button"
+                        className="bg-white p-5 rounded-3xl border border-slate-100 shadow-sm flex-row items-center justify-between active:opacity-80"
+                    >
+                        <View className="flex-row items-center">
+                            <View className="bg-indigo-100 p-2 rounded-xl">
+                                <Ionicons name="shield-checkmark" size={20} color="#4f46e5" />
+                            </View>
+                            <Text className="ml-3 text-slate-700 font-black">Gizlilik Politikası</Text>
+                        </View>
+                        <Ionicons name="chevron-forward" size={20} color="#cbd5e1" />
+                    </Pressable>
                 </ScrollView>
 
-                {/* Kaydet Butonu */}
-                <View className="px-6 py-4 bg-slate-50 border-t border-slate-200">
-                    <TouchableOpacity
-                        className="bg-slate-900 py-5 rounded-2xl shadow-xl active:scale-95 flex-row justify-center items-center"
+                <View className="px-5 py-4 bg-slate-50 border-t border-slate-200">
+                    <AppButton
+                        label="Ayarları Kaydet"
+                        icon="checkmark-circle"
+                        variant="dark"
+                        size="lg"
+                        haptic="medium"
                         onPress={() => navigation.goBack()}
-                    >
-                        <Ionicons name="checkmark-circle" size={24} color="white" className="mr-2" />
-                        <Text className="text-white text-center font-black text-lg uppercase tracking-widest ml-2">
-                            Ayarları Kaydet
-                        </Text>
-                    </TouchableOpacity>
+                    />
                 </View>
             </KeyboardAvoidingView>
         </SafeAreaView>
