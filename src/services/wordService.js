@@ -55,13 +55,21 @@ export const getWordBatch = async (isExtraPurchased = false) => {
   }
 };
 
+const ALLOWED_DIFFICULTIES = ["easy", "medium", "hard"];
+
 const normalizeWords = (words) => {
   if (!Array.isArray(words)) return [];
-  return words.map((w) => ({
-    id: w.id || Math.random().toString(), // ID yoksa uydur
-    targetWord: w.targetWord,
-    forbiddenWords: Array.isArray(w.forbiddenWords) ? w.forbiddenWords : [],
-  }));
+  return words.map((w) => {
+    const rawDifficulty = (w.difficulty || w.level || "").toString().toLowerCase();
+    const difficulty = ALLOWED_DIFFICULTIES.includes(rawDifficulty) ? rawDifficulty : null;
+    return {
+      id: w.id || Math.random().toString(),
+      targetWord: w.targetWord,
+      forbiddenWords: Array.isArray(w.forbiddenWords) ? w.forbiddenWords : [],
+      category: w.category || null,
+      difficulty,
+    };
+  });
 };
 
 // Promise Timeout Yardımcısı
