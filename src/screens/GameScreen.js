@@ -1,12 +1,19 @@
 import React, { useEffect, useReducer, useRef, useState, useCallback } from "react";
 import {
-  View, Text, TouchableOpacity, ActivityIndicator, Modal, StatusBar,
-  InteractionManager, BackHandler
+  View, Text, ActivityIndicator, Modal, StatusBar,
+  InteractionManager, BackHandler, Pressable
 } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Ionicons } from "@expo/vector-icons";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useAudioPlayer } from "expo-audio";
+import Animated, {
+  useSharedValue,
+  useAnimatedStyle,
+  withSpring,
+  withTiming,
+  withDelay,
+} from "react-native-reanimated";
 
 import { loadAd, subscribeAdEvent, showAd, AdEventType } from '../services/adService';
 import { loadWordsOfflineFirst, clearWordsCache } from "../services/wordService";
@@ -16,6 +23,13 @@ import { logRoundEnd } from "../services/analyticsService";
 import useGameStore from "../store/useGameStore";
 import { getProducts, buyProduct } from "../services/iapService";
 import CustomAlert from "../components/CustomAlert";
+import AppButton from "../components/AppButton";
+import CircularTimer from "../components/CircularTimer";
+import AnimatedScore from "../components/AnimatedScore";
+import WordCard from "../components/WordCard";
+import {
+  hapticSuccess, hapticError, hapticLight, hapticMedium, hapticSelection,
+} from "../utils/haptics";
 
 const LAST_FIRST_WORD_KEY = "LAST_FIRST_WORD_V1";
 const CARD_COLORS = ["bg-fuchsia-700", "bg-amber-400", "bg-sky-500", "bg-red-600"];
@@ -63,7 +77,6 @@ export default function GameScreen({ navigation }) {
   const [upsellPrice, setUpsellPrice] = useState(null);
   const [isBuying, setIsBuying] = useState(false);
 
-  // YENİ EKLENDİ: Duraklatma (Pause) State'i
   const [isPaused, setIsPaused] = useState(false);
 
   const settings = useGameStore((s) => s.settings);
@@ -78,6 +91,31 @@ export default function GameScreen({ navigation }) {
   const hasPlayedTickRef = useRef(false);
   const pendingUpsellRef = useRef(false);
   const pendingStartAfterPurchaseRef = useRef(false);
+
+  const wordCardRef = useRef(null);
+
+  // Entrance animation values
+  const headerOpacity = useSharedValue(0);
+  const headerTranslate = useSharedValue(-20);
+  const buttonsOpacity = useSharedValue(0);
+  const buttonsTranslate = useSharedValue(30);
+
+  useEffect(() => {
+    headerOpacity.value = withTiming(1, { duration: 380 });
+    headerTranslate.value = withSpring(0, { damping: 14, stiffness: 160 });
+    buttonsOpacity.value = withDelay(160, withTiming(1, { duration: 380 }));
+    buttonsTranslate.value = withDelay(160, withSpring(0, { damping: 14, stiffness: 160 }));
+  }, []);
+
+  const headerStyle = useAnimatedStyle(() => ({
+    opacity: headerOpacity.value,
+    transform: [{ translateY: headerTranslate.value }],
+  }));
+
+  const buttonsStyle = useAnimatedStyle(() => ({
+    opacity: buttonsOpacity.value,
+    transform: [{ translateY: buttonsTranslate.value }],
+  }));
 
   useEffect(() => {
     if (isPremium && pendingStartAfterPurchaseRef.current) {
@@ -226,10 +264,10 @@ export default function GameScreen({ navigation }) {
     });
   }, [settings]);
 
-  // DEĞİŞTİRİLDİ: Geri tuşuna basıldığında oyunu duraklat (Pause menüsünü aç)
   useEffect(() => {
     const onBackPress = () => {
       if (!state.isGameOver) {
+        hapticMedium();
         setIsPaused(true);
         stopTickSlow();
         return true;
@@ -240,7 +278,6 @@ export default function GameScreen({ navigation }) {
     return () => subscription.remove();
   }, [state.isGameOver]);
 
-  // DEĞİŞTİRİLDİ: isPaused state'ine göre zamanlayıcıyı durdur/başlat
   useEffect(() => {
     if (!state.isActive || isPaused) {
       if (intervalRef.current) clearInterval(intervalRef.current);
@@ -266,10 +303,14 @@ export default function GameScreen({ navigation }) {
       hasPlayedTickRef.current = true;
       playTickSlow();
     }
+    if (state.timeLeft === 8 || state.timeLeft === 5 || state.timeLeft === 3) {
+      hapticSelection();
+    }
   }, [state.isActive, state.timeLeft, isPaused]);
 
   useEffect(() => {
     if (state.timeLeft === 0 && state.isActive === false && !state.isGameOver) {
+      hapticMedium();
       const teamScore = state.activeTeam === "A" ? state.teamAScore : state.teamBScore;
       logRoundEnd(state.activeTeam, teamScore);
       dispatch({
@@ -292,7 +333,7 @@ export default function GameScreen({ navigation }) {
     const navTimer = setTimeout(() => {
       if (cancelled) return;
       navigation?.replace?.("Result");
-    }, 350);
+    }, 420);
 
     InteractionManager.runAfterInteractions(async () => {
       if (cancelled) return;
@@ -311,23 +352,31 @@ export default function GameScreen({ navigation }) {
 
   const onCorrect = () => {
     if (!state.isActive || isPaused) return;
+    wordCardRef.current?.success?.();
+    hapticSuccess();
     dispatch({ type: "SUCCESS" });
     playSound("SUCCESS");
   };
+
   const onTaboo = () => {
     if (!state.isActive || isPaused) return;
+    wordCardRef.current?.taboo?.();
+    hapticError();
     dispatch({ type: "TABOO" });
     playSound("ERROR");
   };
+
   const onPass = () => {
     if (!state.isActive || isPaused) return;
+    wordCardRef.current?.pass?.();
+    hapticLight();
     dispatch({ type: "PASS" });
   };
 
-  // REKLAM ALGORİTMASI DÜZELTMESİ BURADA UYGULANDI
   const startNextTurn = async () => {
     if (isProcessingTurn) return;
     setIsProcessingTurn(true);
+    hapticMedium();
 
     const isFullRoundFinished = state.activeTeam === "A";
     const finishedRound = state.roundNumber - 1;
@@ -345,9 +394,11 @@ export default function GameScreen({ navigation }) {
 
   if (state.loading && !state.words?.length && !fetchError) {
     return (
-      <View className="flex-1 justify-center items-center bg-white">
-        <ActivityIndicator size="large" color="#4f46e5" />
-        <Text className="text-slate-400 mt-4 font-bold">Kelimeler Hazırlanıyor...</Text>
+      <View className="flex-1 justify-center items-center bg-slate-50">
+        <ActivityIndicator size="large" color="#a21caf" />
+        <Text className="text-slate-500 mt-4 font-bold uppercase tracking-widest text-xs">
+          Kelimeler Hazırlanıyor...
+        </Text>
       </View>
     );
   }
@@ -358,9 +409,6 @@ export default function GameScreen({ navigation }) {
   const prevTeamName = prevTeam === "A" ? settings?.teamAName : settings?.teamBName;
   const prevTeamScore = prevTeam === "A" ? state.teamAScore : state.teamBScore;
 
-  const timer = state.timeLeft || 0;
-  const mm = Math.floor(timer / 60);
-  const ss = timer % 60 < 10 ? `0${timer % 60}` : timer % 60;
   const totalRounds = state.roundsPerTeam ?? settings?.roundsPerTeam ?? 4;
   const roundLabel = `${state.roundNumber ?? 1}/${totalRounds}`;
 
@@ -433,170 +481,200 @@ export default function GameScreen({ navigation }) {
   const currentColor = CARD_COLORS[(state.currentIndex ?? 0) % CARD_COLORS.length];
   const headerTextColor = currentColor === "bg-amber-400" ? "text-slate-900" : "text-white";
 
+  const currentTeamScore = state.activeTeam === "A" ? state.teamAScore : state.teamBScore;
+
   return (
     <SafeAreaView className={`flex-1 ${isDarkTheme ? "bg-slate-900" : "bg-slate-50"}`}>
       <StatusBar barStyle={isDarkTheme ? "light-content" : "dark-content"} />
 
       {renderThemeBackground()}
 
-      {/* DEĞİŞTİRİLDİ: Header alanına Pause Butonu Eklendi ve Boşluklar Ayarlandı */}
-      <View className={`flex-row justify-between items-center px-4 py-4 shadow-sm z-10 ${isDarkTheme ? "bg-slate-800/80" : "bg-white/80"}`}>
-
-        <TouchableOpacity
-          className="items-center justify-center mr-2 active:scale-90"
-          onPress={() => { setIsPaused(true); stopTickSlow(); }}
+      <Animated.View
+        style={headerStyle}
+        className={`flex-row justify-between items-center px-4 pt-3 pb-3 z-10 ${isDarkTheme ? "bg-slate-800/80" : "bg-white/80"} shadow-sm`}
+      >
+        <Pressable
+          hitSlop={10}
+          accessibilityLabel="Oyunu duraklat"
+          accessibilityRole="button"
+          onPress={() => {
+            hapticLight();
+            setIsPaused(true);
+            stopTickSlow();
+          }}
+          className="items-center justify-center active:opacity-70"
+          style={{ width: 44, height: 44 }}
         >
           <Ionicons name="pause-circle" size={36} color={isDarkTheme ? "#94a3b8" : "#64748b"} />
-        </TouchableOpacity>
+        </Pressable>
 
         <View className="items-center flex-1">
-          <Text className={`${mutedTextColor} text-[10px] font-bold uppercase`} numberOfLines={1}>
+          <Text className={`${mutedTextColor} text-[10px] font-bold uppercase tracking-widest`} numberOfLines={1}>
             {activeTeamName}
           </Text>
-          <Text className="text-sky-500 text-3xl font-black">
-            {state.activeTeam === "A" ? state.teamAScore : state.teamBScore}
-          </Text>
+          <AnimatedScore value={currentTeamScore} size={30} />
         </View>
 
         <View className="items-center mx-2">
-          <View className="flex-row items-center bg-red-500 px-5 py-3 rounded-2xl shadow-lg shadow-indigo-200">
-            <Ionicons name="hourglass-outline" size={20} color="white" style={{ marginRight: 8 }} />
-            <Text className="text-white font-black text-xl">
-              {mm}:{ss}
-            </Text>
-          </View>
-          <Text className={`${mutedTextColor} text-[10px] font-bold uppercase mt-2`}>
+          <CircularTimer
+            timeLeft={state.timeLeft}
+            total={settings?.duration ?? 60}
+            size={88}
+            stroke={8}
+            dark={isDarkTheme}
+          />
+          <Text className={`${mutedTextColor} text-[10px] font-bold uppercase tracking-widest mt-1`}>
             TUR {roundLabel}
           </Text>
         </View>
 
         <View className="items-center flex-1">
-          <Text className={`${mutedTextColor} text-[10px] font-bold uppercase`}>Pas</Text>
-          <Text className="text-amber-400 text-3xl font-black">{state.passCount}</Text>
+          <Text className={`${mutedTextColor} text-[10px] font-bold uppercase tracking-widest`}>
+            Pas ({settings?.maxPass ?? 3})
+          </Text>
+          <AnimatedScore value={state.passCount} size={30} />
         </View>
+      </Animated.View>
+
+      <View className="flex-1 justify-center px-6 z-10">
+        <WordCard
+          ref={wordCardRef}
+          word={currentWord?.targetWord}
+          forbiddenWords={currentWord?.forbiddenWords}
+          headerBg={currentColor}
+          headerTextColor={headerTextColor}
+          isDark={isDarkTheme}
+          currentIndex={state.currentIndex}
+        />
       </View>
 
-      <View className="flex-1 justify-center px-8 z-10">
-        <View className={`rounded-[45px] shadow-2xl overflow-hidden border ${isDarkTheme ? "bg-slate-800 border-slate-700 shadow-slate-900" : "bg-white border-slate-100"}`}>
-          <View className={`${currentColor} py-10 items-center`}>
-            <Text className={`${headerTextColor} text-4xl font-black uppercase tracking-tighter text-center px-4`}>
-              {currentWord?.targetWord ?? "—"}
-            </Text>
-          </View>
-
-          <View className="py-10 items-center">
-            {(currentWord?.forbiddenWords ?? []).map((word, index) => (
-              <View key={`${word}-${index}`} className="py-2 w-full items-center">
-                <Text className={`${textColor} text-2xl font-bold uppercase tracking-tight`}>
-                  {word}
-                </Text>
-                {index < (currentWord?.forbiddenWords?.length ?? 0) - 1 && (
-                  <View className={`w-1/2 h-[1px] mt-2 ${isDarkTheme ? "bg-slate-700" : "bg-slate-100"}`} />
-                )}
-              </View>
-            ))}
-          </View>
-        </View>
-      </View>
-
-      <View className="flex-row px-6 pb-10 gap-4 z-10">
-        <TouchableOpacity
-          className="flex-1 bg-fuchsia-700 h-24 rounded-3xl items-center justify-center shadow-lg shadow-rose-200 active:scale-95"
+      <Animated.View style={buttonsStyle} className="flex-row px-6 pb-8 gap-3 z-10">
+        <AppButton
+          label="Tabu"
+          icon="close-circle"
+          variant="danger"
+          size="lg"
+          haptic={null}
           onPress={onTaboo}
           disabled={!state.isActive || isPaused}
-        >
-          <Ionicons name="close-circle" size={32} color="white" />
-          <Text className="text-white font-black uppercase mt-1">Tabu</Text>
-        </TouchableOpacity>
+          style={{ flex: 1 }}
+        />
 
-        <TouchableOpacity
-          className={`flex-1 h-24 rounded-3xl items-center justify-center shadow-lg active:scale-95 ${state.passCount <= 0 || !state.isActive || isPaused
-            ? "bg-slate-300 shadow-slate-100"
-            : "bg-amber-400 shadow-amber-200"
-            }`}
+        <AppButton
+          label="Pas"
+          icon="refresh-circle"
+          variant={state.passCount <= 0 ? "outline" : "accent"}
+          size="lg"
+          haptic={null}
           onPress={onPass}
           disabled={!state.isActive || state.passCount <= 0 || isPaused}
-        >
-          <Ionicons name="refresh-circle" size={32} color={state.passCount <= 0 || !state.isActive || isPaused ? "#94a3b8" : "white"} />
-          <Text className={`font-black uppercase mt-1 ${state.passCount <= 0 || !state.isActive || isPaused ? "text-slate-400" : "text-white"}`}>
-            Pas
-          </Text>
-        </TouchableOpacity>
+          style={{ flex: 1 }}
+        />
 
-        <TouchableOpacity
-          className="flex-1 bg-sky-500 h-24 rounded-3xl items-center justify-center shadow-lg shadow-emerald-200 active:scale-95"
+        <AppButton
+          label="Doğru"
+          icon="checkmark-circle"
+          variant="success"
+          size="lg"
+          haptic={null}
           onPress={onCorrect}
           disabled={!state.isActive || isPaused}
-        >
-          <Ionicons name="checkmark-circle" size={32} color="white" />
-          <Text className="text-white font-black uppercase mt-1">Doğru</Text>
-        </TouchableOpacity>
-      </View>
+          style={{ flex: 1 }}
+        />
+      </Animated.View>
 
-      {/* Bağlantı Hatası Modal */}
       <Modal visible={!!fetchError} transparent animationType="fade">
         <View className="flex-1 items-center justify-center bg-black/40 px-6">
-          <View className="bg-white w-full rounded-3xl p-6">
-            <Text className="text-lg font-black mb-2">Bağlantı Sorunu</Text>
-            <Text className="text-base mb-4">{fetchError}</Text>
+          <View className="bg-white w-full rounded-[32px] p-6 shadow-2xl">
+            <View className="items-center mb-4">
+              <View className="bg-rose-100 p-4 rounded-full mb-2">
+                <Ionicons name="cloud-offline" size={36} color="#e11d48" />
+              </View>
+              <Text className="text-slate-800 text-xl font-black uppercase tracking-widest">Bağlantı Sorunu</Text>
+            </View>
+            <Text className="text-slate-500 font-bold text-base mb-6 text-center leading-6">{fetchError}</Text>
             <View className="flex-row gap-3">
-              <TouchableOpacity
-                className="flex-1 bg-slate-200 h-12 rounded-2xl items-center justify-center"
+              <AppButton
+                label="Tekrar Dene"
+                icon="refresh"
+                variant="primary"
+                size="md"
+                style={{ flex: 1 }}
                 onPress={async () => {
                   try { await clearWordsCache?.(); } catch (_) { }
                   setFetchError(null);
                   initGame();
                 }}
-              >
-                <Text className="text-slate-800 font-black">Tekrar Dene</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                className="flex-1 bg-cyan-700 h-12 rounded-2xl items-center justify-center"
+              />
+              <AppButton
+                label="Çıkış"
+                variant="outline"
+                size="md"
+                glow={false}
+                style={{ flex: 1 }}
                 onPress={() => { setFetchError(null); navigation.navigate("Home"); }}
-              >
-                <Text className="text-white font-black">Çıkış</Text>
-              </TouchableOpacity>
+              />
             </View>
           </View>
         </View>
       </Modal>
 
-      {/* Tur Arası Modal */}
-      <Modal visible={!state.isActive && !state.isGameOver && state.timeLeft > 0 && !fetchError && !isPaused} transparent animationType="slide">
-        <View className="flex-1 bg-indigo-900/98 items-center justify-center px-6">
-          <View className="bg-white w-full p-8 rounded-[50px] items-center shadow-2xl">
+      <Modal
+        visible={!state.isActive && !state.isGameOver && state.timeLeft > 0 && !fetchError && !isPaused}
+        transparent
+        animationType="fade"
+      >
+        <View className="flex-1 bg-indigo-900/95 items-center justify-center px-6">
+          <View className="bg-white w-full p-8 rounded-[40px] items-center shadow-2xl">
             <View className="bg-amber-100 p-4 rounded-full mb-4">
               <Ionicons name="stats-chart" size={40} color="#f59e0b" />
             </View>
             <Text className="text-slate-400 font-bold uppercase tracking-widest text-xs mb-2">Tur Sonucu</Text>
-            <Text className="text-fuchsia-700 text-3xl font-black mb-1 text-center">{prevTeamName}</Text>
-            <Text className="text-5xl font-black text-slate-800 mb-2">{prevTeamScore}</Text>
-            <Text className="text-slate-400 text-xs font-bold uppercase tracking-widest mb-6">TUR {roundLabel}</Text>
-            <View className="w-full h-[1px] bg-slate-100 mb-6" />
-            <Text className="text-slate-500 font-bold mb-8 text-center text-lg leading-6">
-              Harika iş çıkardınız!{"\n"}Şimdi sıra <Text className="text-fuchsia-700 font-black">{activeTeamName}</Text> ekibinde.
+            <Text className="text-fuchsia-700 text-2xl font-black mb-1 text-center" numberOfLines={1}>
+              {prevTeamName}
             </Text>
-            <TouchableOpacity
-              className="bg-red-500 w-full py-6 rounded-3xl shadow-xl active:bg-indigo-700 active:scale-95"
-              onPress={startNextTurn}
-              disabled={isProcessingTurn}
-            >
-              {isProcessingTurn ? (
-                <ActivityIndicator color="white" size="small" />
-              ) : (
-                <Text className="text-white font-black text-center text-xl uppercase tracking-widest">
-                  {activeTeamName} BAŞLASIN!
+            <Text className="text-6xl font-black text-slate-800 mb-2">{prevTeamScore}</Text>
+            <Text className="text-slate-400 text-xs font-bold uppercase tracking-widest mb-6">
+              TUR {roundLabel}
+            </Text>
+
+            {/* Mini totals */}
+            <View className="w-full flex-row justify-around mb-6">
+              <View className="items-center">
+                <Text className="text-slate-400 text-[10px] font-bold uppercase tracking-widest">
+                  {settings?.teamAName}
                 </Text>
-              )}
-            </TouchableOpacity>
+                <Text className="text-slate-800 text-xl font-black">{state.teamAScore}</Text>
+              </View>
+              <View className="w-[1px] bg-slate-100" />
+              <View className="items-center">
+                <Text className="text-slate-400 text-[10px] font-bold uppercase tracking-widest">
+                  {settings?.teamBName}
+                </Text>
+                <Text className="text-slate-800 text-xl font-black">{state.teamBScore}</Text>
+              </View>
+            </View>
+
+            <Text className="text-slate-500 font-bold mb-6 text-center text-base leading-6">
+              Sıra <Text className="text-fuchsia-700 font-black">{activeTeamName}</Text> ekibinde.
+            </Text>
+
+            <AppButton
+              label={`${activeTeamName} BAŞLASIN`}
+              icon="play"
+              variant="primary"
+              size="xl"
+              loading={isProcessingTurn}
+              onPress={startNextTurn}
+              haptic="medium"
+            />
           </View>
         </View>
       </Modal>
 
-      {/* Reklam Kaldırma Upsell Popup */}
       <Modal visible={showUpsell && !isPaused} transparent animationType="fade">
         <View className="flex-1 items-center justify-center bg-black/60 px-6">
-          <View className="bg-white w-full rounded-[40px] overflow-hidden shadow-2xl">
+          <View className="bg-white w-full rounded-[36px] overflow-hidden shadow-2xl">
             <View className="bg-fuchsia-700 pt-8 pb-6 items-center px-6">
               <View className="bg-white/20 p-4 rounded-full mb-3">
                 <Ionicons name="ban" size={40} color="white" />
@@ -604,11 +682,11 @@ export default function GameScreen({ navigation }) {
               <Text className="text-white text-2xl font-black text-center">
                 Reklamlardan Bıktın mı?
               </Text>
-              <Text className="text-fuchsia-200 text-sm font-bold text-center mt-1">
+              <Text className="text-fuchsia-100 text-sm font-bold text-center mt-1">
                 Tek seferlik ödeme, sonsuza kadar reklamsız!
               </Text>
             </View>
-            <View className="px-6 pt-6 pb-8">
+            <View className="px-6 pt-6 pb-6">
               <View className="gap-3 mb-6">
                 {[
                   { icon: "checkmark-circle", text: "Hiç reklam yok" },
@@ -621,50 +699,59 @@ export default function GameScreen({ navigation }) {
                   </View>
                 ))}
               </View>
-              <TouchableOpacity
-                className="bg-fuchsia-700 w-full py-5 rounded-2xl items-center mb-3 shadow-lg shadow-fuchsia-200 active:scale-95"
+              <AppButton
+                label={`Reklamları Kaldır${upsellPrice ? ` — ${upsellPrice}` : ""}`}
+                variant="primary"
+                size="lg"
+                loading={isBuying}
+                haptic="medium"
                 onPress={handleBuyRemoveAds}
-                disabled={isBuying}
-              >
-                {isBuying ? (
-                  <ActivityIndicator color="white" size="small" />
-                ) : (
-                  <Text className="text-white font-black text-lg">
-                    Reklamları Kaldır {upsellPrice ? `— ${upsellPrice}` : ""}
-                  </Text>
-                )}
-              </TouchableOpacity>
-              <TouchableOpacity
-                className="w-full py-4 items-center"
+                style={{ marginBottom: 10 }}
+              />
+              <Pressable
+                hitSlop={6}
+                className="w-full py-4 items-center active:opacity-60"
                 onPress={handleUpsellClose}
                 disabled={isBuying}
+                accessibilityRole="button"
+                accessibilityLabel="Hayır, devam et"
               >
                 <Text className="text-slate-400 font-bold text-sm">Hayır, devam et</Text>
-              </TouchableOpacity>
+              </Pressable>
             </View>
           </View>
         </View>
       </Modal>
 
-      {/* YENİ EKLENDİ: Duraklatma (Pause) ve Çıkış Modalı */}
       <Modal visible={isPaused} transparent animationType="fade">
         <View className="flex-1 items-center justify-center bg-black/70 px-6 z-50">
-          <View className="bg-white w-full rounded-[40px] p-8 items-center shadow-2xl">
-            <Ionicons name="pause-circle" size={64} color="#f59e0b" className="mb-2" />
-            <Text className="text-2xl font-black text-slate-800 mb-6">Oyun Duraklatıldı</Text>
+          <View className="bg-white w-full rounded-[36px] p-8 items-center shadow-2xl">
+            <View className="bg-amber-100 p-4 rounded-full mb-3">
+              <Ionicons name="pause-circle" size={44} color="#f59e0b" />
+            </View>
+            <Text className="text-2xl font-black text-slate-800 mb-6 uppercase tracking-widest">
+              Oyun Duraklatıldı
+            </Text>
 
-            <TouchableOpacity
-              className="bg-sky-500 w-full py-4 rounded-2xl items-center mb-4 shadow-lg active:scale-95"
+            <AppButton
+              label="Oyuna Dön"
+              icon="play"
+              variant="info"
+              size="lg"
+              haptic="medium"
               onPress={() => {
                 setIsPaused(false);
-                if (state.timeLeft <= 8) playTickSlow(); // Süre 8 saniyenin altındaysa sesi geri başlat
+                if (state.timeLeft <= 8 && state.timeLeft > 0) playTickSlow();
               }}
-            >
-              <Text className="text-white font-black text-lg uppercase tracking-widest">Oyuna Dön</Text>
-            </TouchableOpacity>
+              style={{ marginBottom: 12 }}
+            />
 
-            <TouchableOpacity
-              className="bg-red-500 w-full py-4 rounded-2xl items-center shadow-lg active:scale-95"
+            <AppButton
+              label="Çıkış Yap"
+              icon="exit"
+              variant="danger"
+              size="lg"
+              haptic="medium"
               onPress={() => {
                 setIsPaused(false);
                 if (intervalRef.current) {
@@ -675,9 +762,7 @@ export default function GameScreen({ navigation }) {
                 if (navigation.canGoBack()) navigation.popToTop();
                 else navigation.replace("Home");
               }}
-            >
-              <Text className="text-white font-black text-lg uppercase tracking-widest">Çıkış Yap</Text>
-            </TouchableOpacity>
+            />
           </View>
         </View>
       </Modal>
