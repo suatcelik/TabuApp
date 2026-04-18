@@ -8,7 +8,7 @@ import {
 } from "react-native";
 import ConfettiCannon from "react-native-confetti-cannon";
 import { Ionicons } from "@expo/vector-icons";
-import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
+import { SafeAreaView } from "react-native-safe-area-context";
 import { useAudioPlayer } from "expo-audio";
 import Animated, {
   useSharedValue,
@@ -29,14 +29,16 @@ import PulsingRings from "../components/PulsingRings";
 import OrbitingSparkles from "../components/OrbitingSparkles";
 import ScorePodium from "../components/ScorePodium";
 import { hapticSuccess, hapticLight, hapticSelection, hapticMedium } from "../utils/haptics";
+import useTranslation from "../hooks/useTranslation";
 
 export default function ResultScreen({ navigation }) {
   const finalScores = useGameStore((s) => s.finalScores);
   const settings = useGameStore((s) => s.settings);
   const resetGame = useGameStore((s) => s.resetGame);
   const isPremium = useGameStore((s) => s.isPremium);
+  const soundOn = settings?.sound !== false;
 
-  const insets = useSafeAreaInsets();
+  const { t } = useTranslation();
   const { width } = useWindowDimensions();
 
   const [showConfetti, setShowConfetti] = useState(false);
@@ -227,7 +229,9 @@ export default function ResultScreen({ navigation }) {
     if (!isDraw) {
       const t1 = setTimeout(() => {
         setShowConfetti(true);
-        try { winPlayer.seekTo?.(0); winPlayer.play(); } catch (_) { }
+        if (soundOn) {
+          try { winPlayer.seekTo?.(0); winPlayer.play(); } catch (_) { }
+        }
       }, 650);
 
       const t2 = setTimeout(() => {
@@ -267,9 +271,17 @@ export default function ResultScreen({ navigation }) {
     hapticLight();
     try {
       const msg = isDraw
-        ? `Tabu GO: ${settings?.teamAName} ${scoreA} - ${scoreB} ${settings?.teamBName} berabere bitti!`
-        : `Tabu GO: ${winnerName} ${Math.max(scoreA, scoreB)} puanla kazandı!`;
-      await Share.share({ message: `${msg}\n\nSen de arkadaşlarınla oyna!` });
+        ? t("result.shareDraw", {
+            a: settings?.teamAName,
+            b: settings?.teamBName,
+            scoreA,
+            scoreB,
+          })
+        : t("result.shareWin", {
+            winner: winnerName,
+            score: Math.max(scoreA, scoreB),
+          });
+      await Share.share({ message: `${msg}\n\n${t("result.shareInvite")}` });
     } catch (_) { }
   };
 
@@ -283,8 +295,8 @@ export default function ResultScreen({ navigation }) {
   const glowColor = isDraw ? "#818cf8" : "#fde68a";
   const badgeBg = isDraw ? "bg-slate-700" : "bg-amber-400";
   const trophyIcon = isDraw ? "people-circle" : "trophy";
-  const resultTitle = isDraw ? "BERABERE" : "ZAFER!";
-  const eyebrowText = isDraw ? "İki takım da eşit!" : "Kazanan Takım";
+  const resultTitle = isDraw ? t("result.draw") : t("result.victory");
+  const eyebrowText = isDraw ? t("result.tieBoth") : t("result.winnerTeam");
 
   return (
     <View style={{ flex: 1, backgroundColor: "#0b0324" }}>
@@ -337,7 +349,7 @@ export default function ResultScreen({ navigation }) {
                   marginBottom: 6,
                 }}
               >
-                Oyun Bitti
+                {t("result.eyebrow")}
               </Text>
             </Animated.View>
 
@@ -457,7 +469,7 @@ export default function ResultScreen({ navigation }) {
                   textShadowRadius: 6,
                 }}
               >
-                {isDraw ? "Dostluk Kazandı" : winnerName}
+                {isDraw ? t("result.friendshipWins") : winnerName}
               </Text>
             </Animated.View>
           </View>
@@ -490,7 +502,7 @@ export default function ResultScreen({ navigation }) {
           {/* ACTIONS */}
           <Animated.View style={actionsStyle}>
             <AppButton
-              label="YENİ OYUN"
+              label={t("result.newGame")}
               icon="play"
               variant="accent"
               size="xl"
@@ -503,7 +515,7 @@ export default function ResultScreen({ navigation }) {
 
             <View style={{ flexDirection: "row", gap: 12 }}>
               <AppButton
-                label="PAYLAŞ"
+                label={t("result.share")}
                 icon="share-social"
                 variant="info"
                 size="md"
@@ -511,7 +523,7 @@ export default function ResultScreen({ navigation }) {
                 style={{ flex: 1 }}
               />
               <AppButton
-                label="ANA MENÜ"
+                label={t("result.home")}
                 icon="home"
                 variant="ghost"
                 size="md"
